@@ -1,0 +1,483 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+    <title>共享房间</title>
+	<link rel="stylesheet" href="layui/css/layui.css">
+</head>
+
+##### 关注TG频道 @aafaili #### ☞删除本行
+<style>
+	body {
+		display: flex;
+		justify-content: center;
+		align-items: center;
+		margin: 0;
+		background-color: #23292e;
+		padding:0 10px;
+	  }
+	#myCanvas {
+		background: url('map.png') no-repeat center center;
+		background-size: cover;
+		 width: 80%;
+		 height: 80%;
+	}
+	.rotate0{transform: rotate(0deg);}
+	.rotate180{transform: rotate(180deg);}
+	.canvas-container {
+		display: flex;
+		justify-content: center;
+		align-items: center;
+		height: 100%;
+	}
+	.shadow-box {
+		box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+	}
+	.layui-menu{
+		background-color:#23292e;
+	}
+	.layui-menu-body-title a{color:#FFF;}
+	.layui-menu-body-title a{text-align: center;}
+	.layui-menu-body-title span{color:#FFF;margin:0 10px;}
+	.layui-col-md8{padding:30px;}
+	.layui-col-xs12{padding:10px;}
+	@media only screen 
+		and (min-width: 320px) 
+		and (max-width: 480px) {
+			#myCanvas {
+				 width: 100%;
+				 height: 80%;
+			}
+	}
+	.heroliHF{border-left: 3px solid red;}
+	.heroliLF{border-left: 3px solid #258DF2;}
+	.homeList_li{border-bottom: 1px solid #2f363c;}
+	.homeListSelectLi{background: linear-gradient(to right, #31bdec30, #ff572230);}
+	.heroTxHF{width:40px;height:40px;border: 3px solid red;border-radius:50%;}
+	.heroTxLF{width:40px;height:40px;border: 3px solid #258DF2;border-radius:50%;}
+	.layui-form-checkbox[lay-skin=primary]>div{color:#FFF;}
+</style>
+<body>
+  <div class="layui-row" style="width:100%;">
+    <div class="layui-col-xs12 layui-col-sm8 layui-col-md8">
+      <div class="canvas-container shadow-box" style="background-color:#2f363c;padding:10px;">
+        <canvas id="myCanvas" width="340" height="340"></canvas>
+      </div>
+    </div>
+    <div class="layui-col-xs12 layui-col-sm4 layui-col-md4" >
+		<div class="layui-panel ws-menu shadow-box" style="margin-bottom:10px;background-color:#2f363c;border:none;margin-top:-5px;">
+		  <ul class="layui-menu layui-menu-lg">
+			<li class="layui-menu-item-group" id="heroInfo">
+			  <div class="layui-menu-body-title" style="background-color: #2f363c;color:#FFF;">
+				人物技能信息
+				<button class="layui-btn layui-btn-sm" style="float:right;margin-right:-35px;display:none;" onclick="showThisFunction()" id="showThis">显示我方</button>
+			  </div>
+			  <ul id="heroList"  style="margin: 5px -15px 0px -15px;"></ul>
+			</li>
+		  </ul>
+		</div>
+		<div class="layui-panel ws-menu shadow-box" style="margin-bottom:10px;background-color:#2f363c;border:none;margin-top:10px;">
+		  <ul class="layui-menu layui-menu-lg ws-docs-menu">
+			<li class="layui-menu-item-group">
+			  <div class="layui-menu-body-title" style="background-color: #2f363c;color:#FFF;">
+				房间列表<span id="homeText" style="margin-left:10px;">服务器连接中...</span>
+				<button class="layui-btn layui-btn-sm" style="float:right;margin-right:-35px;" onclick="homeId=''">断开连接</button>
+			</div>
+			  <ul id="homeList"  style="margin: 5px -15px 0px -15px;"></ul>
+			</li>
+		  </ul>
+		</div>
+		<div class="layui-panel ws-menu shadow-box" style="margin-bottom:10px;background-color:#2f363c;border:none;margin-top:10px;">
+		  <ul class="layui-menu layui-menu-lg ws-docs-menu">
+			<li class="layui-menu-item-group">
+			  <div class="layui-menu-body-title" style="background-color: #2f363c;color:#FFF;">
+				<input style="background-color: #2f363c;color:#FFF;width: 90%;height: 25px" placeholder="请输入房间名称" id="homeIdInput"/>
+				<button class="layui-btn layui-btn-sm" style="float:right;margin-right:-35px;" id="linkHome" onclick="setHomeId();">连接</button>
+			</div>
+			  <ul id="homeList"  style="margin: 5px -15px 0px -15px;"></ul>
+			</li>
+		  </ul>
+		</div>
+        <audio controls autoplay>
+            <source src="音乐.mp3" type="audio/mpeg">
+        </audio>
+    </div>
+  </div>
+</body>
+
+<script src="layui/layui.js" charset="utf-8"></script>
+<script type="text/javascript">
+	document.onkeydown = function () {    
+		if (window.event && window.event.keyCode == 123) {    
+			window.event.returnValue = false;    
+		}    
+	}
+	var timestamp = new Date().getTime();
+	var ip='111.67.197.26:8888';
+	//ip='175.178.68.164:8888';
+	//ip='45.153.131.27:8888';
+	//ip='111.67.197.26:8888';
+	//ip='192.168.2.101:8888';
+	//ip='110.40.168.108:8888';
+    var socket;
+	var homeId="";
+	var gameDataTime=20;
+	var showThisData=0;
+	var mapImageRotate=0;
+	const homeIdInput = document.getElementById("homeIdInput");
+	const heroInfo = document.getElementById("heroInfo");
+	const homeText = document.getElementById("homeText");
+	const homeList = document.getElementById("homeList");
+	const heroList = document.getElementById("heroList");
+	const showThis = document.getElementById("showThis");
+	const canvas = document.getElementById("myCanvas");
+	const context = canvas.getContext("2d");
+	var 血条背景颜色="#FFFFFF95";
+	var 野怪颜色="#FFb800";
+	var 红方头像边框颜色="red";
+	var 蓝方头像边框颜色="#258DF2";
+	var 红方血条颜色="red";
+	var 蓝方血条颜色="#16b777";
+	var 红方兵线颜色="red";
+	var 蓝方兵线颜色="#258DF2";
+	var 野怪满CD时间=[0,60,70,90,120,240];
+	const 防御塔 = new Image();
+	防御塔.src = "防御塔.png";
+	const 回城 = new Image();
+	回城.src = "回城.png";
+	var 英雄信息=[];
+	
+	
+	function showThisFunction(){
+		showThisData=showThisData==1?0:1;
+		showThis.textContent=showThisData==1?"不显示我方":"显示我方";
+	}
+	
+	// 英雄ID
+	const imagePaths = ["545","162","187","142","191","179","141","190","564","112","130","194","515","125","527","157","124","508","505","129","149","156","144","126","504","175","119","513","506","170","540","109","177","511","136","544","116","110","166","514","537","118","182","524","152","132","196","525","523","174","531","509","503","184","178","137","534","134","150","171","146","192","133","168","183","538","507","117","111","528","548","169","139","131","193","199","113","198","536","140","153","106","127","148","114","155","135","108","115","521","529","501","163","533","173","542","180","128","518","121","195","197","154","510","107","502","105","176","123","167","522","312","120","189","186"];
+	const 防御塔图片Paths = ["5","10","20","30","40","50","60","70","80","90","100"];
+	
+	const images = imagePaths.map(path => {
+		const image = new Image();
+		image.src = "https://game.gtimg.cn/images/yxzj/img201606/heroimg/"+path+"/"+path+".jpg";
+		return image;
+	});
+	const 蓝方防御塔 = 防御塔图片Paths.map(path => {
+		const image = new Image();
+		image.src = "蓝方防御塔"+path+".png";
+		return image;
+	});
+	const 红方防御塔 = 防御塔图片Paths.map(path => {
+		const image = new Image();
+		image.src = "红方防御塔"+path+".png";
+		return image;
+	});
+	
+	for (const key in 防御塔图片Paths) {
+		const imagePath = 防御塔图片Paths[key];
+		const image = new Image();
+		image.src = "蓝方防御塔"+imagePath+".png";
+		蓝方防御塔[imagePath] = image;
+		const image2 = new Image();
+		image2.src = "红方防御塔"+imagePath+".png";
+		红方防御塔[imagePath] = image2;
+	}
+
+	for (const key in imagePaths) {
+		const imagePath = imagePaths[key];
+		const image = new Image();
+		image.src = "https://game.gtimg.cn/images/yxzj/img201606/heroimg/"+imagePath+"/"+imagePath+".jpg";
+		images[imagePath] = image;
+	}
+	
+	function clearCanvas() {
+		context.clearRect(0, 0, canvas.width, canvas.height);
+	}
+	// 绘制兵线
+	function drawFilledCircle(x, y, radius, zy) {
+		x=Number(x);
+		y=Number(y);
+		zy = Number(zy);
+		context.beginPath();
+		context.arc(x, y, radius, 0, Math.PI * 2);
+		context.fillStyle = zy === 1 ? 蓝方兵线颜色:红方兵线颜色;
+		context.fill();
+		context.closePath();
+	}
+	//绘制野怪
+	function drawText(x, y, text) {
+		x=Number(x);
+		y=Number(y);
+		var 野怪cd=Number(text);
+		野怪满CD时间.forEach(cd => {
+			if(cd==Number(text)){
+				野怪cd=0;
+			}
+		});
+		if(0==野怪cd){
+			context.beginPath();
+			context.arc(x, y, 4, 0, Math.PI * 2);
+			context.fillStyle =野怪颜色;
+			context.fill();
+			context.closePath();
+		}else{
+			context.font = "12px Arial";
+			context.fillStyle = 野怪颜色;
+			context.fillText(野怪cd, x, y);
+		}
+	}
+	//绘制头像
+	function drawImageAtPosition(x, y, image, width, height, zy, hc) {
+		x = Number(x);
+		y = Number(y);
+		zy = Number(zy);
+		hc = Number(hc);
+		context.save();
+		const radius = Math.max(width, height) / 2 - 2;
+		context.beginPath();
+		context.arc(x + width / 2, y + height / 2, radius, 0, Math.PI * 2);
+		context.clip();
+		context.drawImage(image, x, y, width, height);
+		context.beginPath();
+		context.arc(x + width / 2, y + height / 2, radius, 0, Math.PI * 2);
+		context.strokeStyle =  zy === 1 ? 蓝方头像边框颜色:红方头像边框颜色;
+		context.lineWidth = 7;
+		context.stroke();
+		context.restore();
+	}
+	//绘制血条
+	function drawHP(x, y, hp,zy) {
+		x=Number(x);
+		y=Number(y)+40;
+		if (y+10 > canvas.height) {
+			y -= 40;
+		}else if (y <= 10) {
+			y+=40;
+		}
+		hp=Number(hp);
+		zy = Number(zy);
+		const maxWidth = 40;
+		const hpWidth = (hp / 100) * maxWidth;
+		context.beginPath();
+		context.moveTo(x, y); 
+		context.lineTo(x+maxWidth, y); 
+		context.strokeStyle = 血条背景颜色;
+		context.lineWidth = 5;
+		context.stroke(); 
+		context.beginPath();
+		context.moveTo(x, y);
+		context.lineTo(x + hpWidth, y);
+		context.strokeStyle = zy === 1 ? 蓝方血条颜色:红方血条颜色;
+		context.lineWidth = 5;
+		context.stroke();
+		context.closePath();
+	}
+	//绘制防御塔
+	function 绘制防御塔(x, y, hp, zy , width, height) {
+		x = Number(x);
+		y = Number(y);
+		hp = Number(hp);
+		if(0<hp){
+			zy = Number(zy);
+			context.save();
+			const radius = Math.max(width, height) / 2 - 2;
+			context.beginPath();
+			context.arc(x + width / 2, y + height / 2, radius, 0, Math.PI * 2);
+			context.clip();
+			context.drawImage(防御塔, x, y, width, height);
+			context.beginPath();
+			context.arc(x + width / 2, y + height / 2, radius, 0, Math.PI * 2);
+			context.clip();
+			var index=100;
+			if(100==hp){
+				index=100;
+			}else if(89<hp && 100>hp){
+				index=90;
+			}else if(79<hp && 90>hp){
+				index=80;
+			}else if(69<hp && 80>hp){
+				index=70;
+			}else if(59<hp && 70>hp){
+				index=60;
+			}else if(49<hp && 60>hp){
+				index=50;
+			}else if(39<hp && 50>hp){
+				index=40;
+			}else if(29<hp && 40>hp){
+				index=30;
+			}else if(19<hp && 30>hp){
+				index=20;
+			}else if(9<hp && 20>hp){
+				index=10;
+			}else if(10>hp){
+				index=5;
+			}
+			
+			if(1==zy){
+				context.drawImage(蓝方防御塔[index], x, y, width, height);
+			}else{
+				context.drawImage(红方防御塔[index], x, y, width, height);
+			}
+			context.restore();
+		}
+	}
+
+	
+    //如果浏览器支持WebSocket
+    if(window.WebSocket){
+        //参数就是与服务器连接的地址
+
+        socket = new WebSocket("ws://"+ip+"/ws");
+
+        //客户端收到服务器消息的时候就会执行这个回调方法
+        socket.onmessage = function (event) {
+			 var datas = event.data.split("##");
+			 if("homeData"===datas[0]){
+				datas = datas[1].split(",");
+				var listHtml='';
+				if(0<datas.length&&""!=datas){
+					datas.forEach((buttonName,index) => {
+						var listClass=index === datas.length - 1?'':'homeList_li';
+						listClass+=((buttonName==homeId)?' homeListSelectLi':'');
+				// 		listHtml+='<li onclick="buttonClicked(\''+buttonName+'\');" class="'+listClass+'">'
+				// 					+'  <div class="layui-menu-body-title">'
+				// 					+'	<a>'
+				// 					+'	  <span>'+buttonName+'</span>' 
+				// 					+'	</a>'
+				// 					+'  </div>'
+				// 					+'</li>';
+					});
+				}else{
+					 listHtml+='<li onclick="homeId=">'
+								+'  <div class="layui-menu-body-title">'
+								+'	<a>'
+								+'	  <span>暂时没人开启共享</span>' 
+								+'	</a>'
+								+'  </div>'
+								+'</li>';
+				}
+				homeList.innerHTML = listHtml;
+				homeText.textContent=homeId==''?"未连接房间":homeId;
+			 }else if("gameData"===datas[0]){
+				clearCanvas();
+				datas = datas[1].split("---");
+				
+				
+				ygData = datas[1].split("==");
+				ygData.forEach(ygAll => {
+					var yg = ygAll.split(",");
+					drawText(yg[3], yg[4], yg[1]);
+				});
+
+				bxData = datas[2].split("==");
+				bxData.forEach(bxAll => {
+					var bx = bxAll.split(",");
+					drawFilledCircle(bx[0], bx[1], 4, bx[2]);
+				});
+				
+				rwData = datas[0].split("==");
+				英雄信息=rwData;
+				rwData.forEach(rwAll => {
+					var rw = rwAll.split(",");
+					if(""!=rw[0]){	
+						drawImageAtPosition(rw[5], rw[6], images[rw[0]], 40, 40,rw[8],1);
+						drawHP(rw[5],rw[6],rw[7],rw[8]);
+					}
+				});
+				mapImageRotate=Number(datas[4]);
+			 }
+        }
+
+        //连接建立的回调函数
+        socket.onopen = function(event){
+			getHome();
+			setInterval(getHome, 1000);
+			setInterval(getGameData, gameDataTime);
+			setInterval(刷新英雄信息, 500);
+        }
+
+        //连接断掉的回调函数
+        socket.onclose = function (event) {
+			homeText.textContent="与服务器断开了";
+        }
+    }else{
+		homeText.textContent="浏览器不支持WebSocket";
+    }
+
+    //发送数据
+    function send(message){
+        if(!window.WebSocket){
+            return;
+        }
+        if(socket.readyState == WebSocket.OPEN){
+            socket.send(message);
+        }else{
+			homeText.textContent="连接不上服务器";
+        }
+    }
+	function getHome() {
+		send("getHome");
+	}
+
+	function getGameData() {
+		if(""!=homeId){
+			send("web"+timestamp+"[==]"+homeId);
+			console.log("请求游戏数据");
+		}
+		heroInfo.className="layui-menu-item-group";
+	}
+	function buttonClicked(buttonText) {
+		homeId=buttonText;
+		getGameData();
+	}
+	function setHomeId(){
+		console.log(homeId);
+		homeId=homeIdInput.value;
+		console.log(homeId);
+	}
+	function 刷新英雄信息(){
+		canvas.className=mapImageRotate==1?"rotate180":"rotate0";
+		var heroListHtml='';
+		var heroListHtml2='';
+		英雄信息.forEach(rwAll => {
+			var rw = rwAll.split(",");
+			if(""!=rw[0]){	
+			
+				var listClass=Number(rw[8]) === 1?'heroliLF':'heroliHF';				
+				var imgClass=Number(rw[8]) === 1?'heroTxLF':'heroTxHF';
+				var cd=Number(rw[3])>0?rw[3]:'⚪';
+				var heroCd=Number(rw[4])>0?rw[4]:'⚪';
+				if(1!=Number(rw[8])){
+					heroListHtml+='<li class="'+listClass+'">'
+						+'	<div class="layui-menu-body-title" style="padding:5px;">	'
+						+'		<img src="https://game.gtimg.cn/images/yxzj/img201606/heroimg/'+rw[0]+'/'+rw[0]+'.jpg" class="'+imgClass+'"/>'
+						+'		<span>大招：'+cd+'</span>'
+						+'		<span>技能：'+heroCd+'</span>'
+						+'  </div>'
+						+'</li>';
+				}else{
+					heroListHtml2+='<li class="'+listClass+'">'
+						+'	<div class="layui-menu-body-title" style="padding:5px;">	'
+						+'		<img src="https://game.gtimg.cn/images/yxzj/img201606/heroimg/'+rw[0]+'/'+rw[0]+'.jpg" class="'+imgClass+'"/>'
+						+'		<span>大招：'+cd+'</span>'
+						+'		<span>技能：'+heroCd+'</span>'
+						+'  </div>'
+						+'</li>';
+				}
+			}
+		});
+		heroList.innerHTML = heroListHtml+heroListHtml2;
+		
+	}
+	
+	layui.use(['form'], function(){
+	  var form = layui.form
+	  ,layer = layui.layer
+	  ,$ = layui.jquery;
+	  
+	  
+	});
+
+</script>
+</html>
