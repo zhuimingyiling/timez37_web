@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=0.5, minimum-scale=0.01, maximum-scale=2.0, user-scalable=yes">
-    <title>WPS-WEB 小窗口办公版</title>
+    <title>WPS-WEB 高级修复版</title>
     
     <link href="https://cdn.staticfile.org/tabulator/5.1.0/css/tabulator_modern.min.css" rel="stylesheet">
     <script src="https://cdn.staticfile.org/tabulator/5.1.0/js/tabulator.min.js"></script>
@@ -27,31 +27,37 @@
         .logo { font-weight: bold; color: var(--primary-color); font-size: 18px; margin-right: 15px; }
 
         .btn { border: 1px solid var(--border-color); padding: 6px 14px; border-radius: 4px; cursor: pointer; font-size: 13px; background: white; transition: 0.2s; }
-        .btn-vip { background: var(--vip-gold); border: none; font-weight: bold; color: #5d4037; }
+        .btn-vip { background: var(--vip-gold); border: none; font-weight: bold; color: #5d4037; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
         .btn-primary { background: var(--primary-color); color: white; border: none; }
 
-        /* 侧边功能面板 */
+        /* VIP 高斯模糊面板 */
         .vip-side-panel {
-            position: fixed; top: 50px; right: -260px; bottom: 0; width: 250px;
-            background: white; border-left: 1px solid var(--border-color);
-            transition: 0.3s; z-index: 2000; padding: 20px; box-shadow: -2px 0 10px rgba(0,0,0,0.1);
+            position: fixed; top: 0; right: -300px; bottom: 0; width: 280px;
+            background: rgba(255, 255, 255, 0.75); /* 半透明白 */
+            backdrop-filter: blur(15px);           /* 高斯模糊核心 */
+            -webkit-backdrop-filter: blur(15px); 
+            border-left: 1px solid rgba(255, 255, 255, 0.3);
+            transition: 0.4s cubic-bezier(0.4, 0, 0.2, 1); 
+            z-index: 2000; padding: 40px 20px; 
+            box-shadow: -10px 0 30px rgba(0,0,0,0.05);
         }
         .vip-side-panel.active { right: 0; }
+        .vip-item h4 { margin: 20px 0 8px 0; font-size: 14px; color: #333; }
 
-        /* 核心修改：表格窗口化布局 */
+        /* 表格小窗口布局 */
         #table-wrapper { 
-            height: calc(100vh - 90px); /* 留出上下间距 */
-            max-width: 96%;             /* 宽度不占满，营造窗口感 */
-            margin: 20px auto;          /* 自动居中 */
+            height: calc(100vh - 90px); 
+            max-width: 96%;             
+            margin: 20px auto;          
             background: #fff; 
-            box-shadow: 0 8px 24px rgba(0,0,0,0.08); /* 窗口阴影 */
-            border-radius: 12px;        /* 圆角 */
+            box-shadow: 0 10px 30px rgba(0,0,0,0.08); 
+            border-radius: 12px;        
             overflow: hidden; 
             border: 1px solid var(--border-color);
         }
         
         .tabulator { border: none !important; font-size: 14px; }
-        .tabulator-cell { white-space: nowrap !important; border-right: 1px solid #f0f0f0 !important; }
+        .tabulator-cell { white-space: nowrap !important; border-right: 1px solid #f5f5f5 !important; }
         
         @media (max-width: 600px) {
             .logo { display: none; }
@@ -74,20 +80,20 @@
     </div>
 
     <div class="vip-side-panel" id="vipPanel">
-        <h3 style="margin-top:0; color: #5d4037;">VIP 尊享功能</h3>
-        <div class="vip-item" style="margin-bottom:15px;">
-            <h4>✨ 一键美化</h4>
-            <button class="btn" style="width:100%" onclick="applyVipTheme()">智能配色</button>
+        <h2 style="margin-top:0; color: #333;">VIP 尊享</h2>
+        <div class="vip-item">
+            <h4>✨ 智能配色</h4>
+            <button class="btn" style="width:100%" onclick="applyVipTheme()">一键美化</button>
         </div>
-        <div class="vip-item" style="margin-bottom:15px;">
+        <div class="vip-item">
             <h4>🧹 数据清洗</h4>
-            <button class="btn" style="width:100%" onclick="cleanData()">去除空格</button>
+            <button class="btn" style="width:100%" onclick="cleanData()">去除冗余空格</button>
         </div>
-        <div class="vip-item" style="margin-bottom:15px;">
+        <div class="vip-item">
             <h4>🔍 快速搜索</h4>
-            <input type="text" id="filter-input" placeholder="输入关键字..." style="width:100%; padding:8px; box-sizing:border-box; border:1px solid #ddd; border-radius:4px;">
+            <input type="text" id="filter-input" placeholder="输入关键字..." style="width:100%; padding:10px; border:1px solid #ddd; border-radius:6px; background:rgba(255,255,255,0.5);">
         </div>
-        <button class="btn btn-primary" style="width:100%; margin-top:20px;" onclick="toggleVip()">关闭面板</button>
+        <button class="btn btn-primary" style="width:100%; margin-top:40px;" onclick="toggleVip()">关闭面板</button>
     </div>
 
     <div id="table-wrapper">
@@ -100,7 +106,6 @@
     function initTable(data = []) {
         table = new Tabulator("#table-container", {
             data: data,
-            // 修改为 fitColumns：在窗口内自适应宽度，更具小窗口感
             layout: "fitColumns", 
             height: "100%",
             movableColumns: true,
@@ -111,12 +116,12 @@
                 defs.forEach(col => { 
                     col.editor = "input"; 
                     col.headerFilter = "input";
-                    col.minWidth = 60; // 降低最小宽度，允许缩得更紧凑
+                    col.minWidth = 60; 
                     col.vertAlign = "middle";
                 });
                 return defs;
             },
-            placeholder: "点击【导入】开启小窗口办公模式",
+            placeholder: "点击导入 Excel 开始办公",
         });
 
         document.getElementById("filter-input").addEventListener("keyup", function(e){
@@ -133,25 +138,30 @@
         reader.onload = (ev) => {
             try {
                 const data = new Uint8Array(ev.target.result);
-                const wb = XLSX.read(data, {type: 'array', cellDates: true});
-                const res = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], {defval: ""});
+                // 关键修复点：raw:false 强制读取格式化后的文本（如电话号码）
+                const wb = XLSX.read(data, {type: 'array', cellDates: true, cellText: true, raw: false});
+                const sheet = wb.Sheets[wb.SheetNames[0]];
+                
+                // 关键修复点：range: 2 自动跳过前两行合并的标题，直接读取数据表头
+                const res = XLSX.utils.sheet_to_json(sheet, {defval: "", range: 2});
+                
                 initTable(res);
-            } catch(err) { alert("解析失败"); }
+            } catch(err) { alert("解析失败，请检查文件格式"); }
         };
         reader.readAsArrayBuffer(file);
     };
 
     function toggleVip() { document.getElementById('vipPanel').classList.toggle('active'); }
     function applyVipTheme() {
-        document.documentElement.style.setProperty('--primary-color', '#2e7d32');
+        document.documentElement.style.setProperty('--primary-color', '#1a73e8');
         table.redraw();
-        alert("主题切换成功");
+        alert("已应用 VIP 商务蓝主题");
     }
     function cleanData() {
         let data = table.getData();
         data.forEach(row => { for(let key in row) if(typeof row[key] === 'string') row[key] = row[key].trim(); });
         table.setData(data);
-        alert("清洗完成");
+        alert("清洗完成：已剔除单元格前后空格");
     }
     function addColumn() {
         const name = prompt("列标题：");
