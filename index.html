@@ -2,7 +2,7 @@
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, maximum-scale=5.0, user-scalable=yes">
     <title>极速表格工作台</title>
     <link href="https://lf6-cdn-tos.bytecdntp.com/cdn/expire-1-M/tabulator/5.1.0/css/tabulator_modern.min.css" rel="stylesheet">
     <script src="https://lf6-cdn-tos.bytecdntp.com/cdn/expire-1-M/tabulator/5.1.0/js/tabulator.min.js"></script>
@@ -19,65 +19,68 @@
             overflow: hidden; 
         }
 
-        /* 扁平化顶栏 */
         .app-header {
             display: flex; align-items: center; justify-content: space-between;
-            padding: 0 20px; height: 50px;
+            padding: 0 15px; height: 50px;
             border-bottom: 1px solid var(--border-color);
             background: var(--bg-color);
+            position: sticky; top: 0; z-index: 100;
         }
 
-        .main-controls { display: flex; gap: 12px; align-items: center; }
-        .logo { font-weight: bold; font-size: 16px; margin-right: 15px; color: var(--primary-color); }
+        .main-controls { display: flex; gap: 8px; align-items: center; }
+        .logo { font-weight: bold; font-size: 14px; color: var(--primary-color); margin-right: 5px; }
 
-        .btn { border: none; padding: 5px 12px; border-radius: 4px; cursor: pointer; font-size: 13px; transition: 0.2s; background: transparent; color: var(--text-color); border: 1px solid var(--border-color); }
+        .btn { border: 1px solid var(--border-color); padding: 4px 10px; border-radius: 4px; cursor: pointer; font-size: 12px; background: transparent; color: var(--text-color); }
         .btn-primary { background: var(--primary-color); color: white; border: none; }
-        .btn:hover { opacity: 0.8; }
 
-        /* 设置面板 */
         .settings-panel { 
-            position: fixed; top: 50px; right: 0; bottom: 0; width: 240px;
+            position: fixed; top: 50px; right: 0; bottom: 0; width: 220px;
             background: var(--bg-color); border-left: 1px solid var(--border-color);
             padding: 20px; display: none; z-index: 1000;
+            box-shadow: -2px 0 10px rgba(0,0,0,0.1);
         }
         .settings-panel.active { display: block; }
-        .s-item { margin-bottom: 20px; font-size: 14px; }
+        .s-item { margin-bottom: 20px; font-size: 13px; }
 
-        /* 表格容器自适应 */
-        #table-wrapper { height: calc(100vh - 50px); width: 100%; }
-        .tabulator { border: none !important; }
-        /* 解决字显示不全：强制换行 */
-        .tabulator-cell { white-space: pre-wrap !important; word-wrap: break-word !important; border-right: 1px solid var(--border-color) !important; }
+        /* 表格容器：允许内部横向和纵向滚动 */
+        #table-wrapper { height: calc(100vh - 50px); width: 100%; overflow: auto; -webkit-overflow-scrolling: touch; }
+        .tabulator { border: none !important; font-size: inherit; }
+        
+        /* 核心修改：内容撑开列宽，文字不折行以保证清晰度 */
+        .tabulator-cell { 
+            white-space: nowrap !important; 
+            border-right: 1px solid var(--border-color) !important; 
+        }
     </style>
 </head>
 <body data-theme="light">
 
     <div class="app-header">
         <div class="main-controls">
-            <span class="logo">TABLE WORKFLOW</span>
-            <button class="btn btn-primary" onclick="document.getElementById('fileInput').click()">导入文件</button>
+            <span class="logo">WORKFLOW</span>
+            <button class="btn btn-primary" onclick="document.getElementById('fileInput').click()">导入</button>
             <input type="file" id="fileInput" hidden accept=".xlsx, .xls, .csv">
             <button class="btn" onclick="table.addRow({}, true)">增行</button>
             <button class="btn" onclick="addColumn()">增列</button>
             <button class="btn" onclick="table.download('xlsx', 'data.xlsx')">导出</button>
         </div>
-        <div style="cursor:pointer; font-size:18px;" onclick="toggleSettings()">⚙️</div>
+        <div style="cursor:pointer; font-size:18px; padding: 5px;" onclick="toggleSettings()">⚙️</div>
     </div>
 
     <div class="settings-panel" id="settingsPanel">
-        <h4>偏好设置</h4>
+        <h4 style="margin-top:0">个性化设置</h4>
         <div class="s-item">
             <label><input type="checkbox" onchange="toggleDarkMode(this.checked)"> 深色模式</label>
         </div>
         <div class="s-item">
             主题颜色<br>
-            <input type="color" value="#3498db" style="width:100%" onchange="updateThemeColor(this.value)">
+            <input type="color" value="#3498db" style="width:100%; height:30px; margin-top:5px;" onchange="updateThemeColor(this.value)">
         </div>
         <div class="s-item">
             字体大小<br>
-            <input type="range" min="12" max="20" value="14" style="width:100%" onchange="updateFontSize(this.value)">
+            <input type="range" min="10" max="24" value="14" style="width:100%" onchange="updateFontSize(this.value)">
         </div>
-        <button class="btn" style="width:100%" onclick="toggleSettings()">完成</button>
+        <button class="btn" style="width:100%; margin-top:10px;" onclick="toggleSettings()">保存并关闭</button>
     </div>
 
     <div id="table-wrapper">
@@ -87,30 +90,27 @@
 <script>
     var table;
 
-    // 初始化表格，开启自适应布局
     function initTable(data = []) {
         table = new Tabulator("#table-container", {
             data: data,
-            layout: "fitDataFill", // 自适应内容并填满
+            // 核心修改：fitData 模式，根据内容自动撑开列宽，支持横向滚动查看全貌
+            layout: "fitData", 
             height: "100%",
-            pagination: "local",
-            paginationSize: 30,
             movableColumns: true,
             autoColumns: true,
             autoColumnsDefinitions: function(definitions) {
                 definitions.forEach((col) => {
                     col.editor = "input";
-                    col.formatter = "textarea"; // 自动换行防止字显示不全
                     col.headerFilter = "input";
                     col.vertAlign = "middle";
-                    col.minWidth = 80;
+                    col.minWidth = 100; // 设置最小宽度，防止太拥挤
                 });
                 return definitions;
             },
+            placeholder: "暂无数据，请导入文件",
         });
     }
 
-    // 极速文件读取
     document.getElementById('fileInput').onchange = function(e) {
         const file = e.target.files[0];
         if(!file) return;
@@ -129,7 +129,7 @@
                 }
                 initTable(res);
             } catch (err) {
-                alert("文件解析失败，请检查格式");
+                alert("文件解析失败");
             }
         };
 
@@ -137,7 +137,6 @@
         else reader.readAsText(file);
     };
 
-    // 交互功能
     function toggleSettings() { document.getElementById('settingsPanel').classList.toggle('active'); }
     function toggleDarkMode(isDark) { document.body.setAttribute('data-theme', isDark ? 'dark' : 'light'); }
     function updateThemeColor(color) {
@@ -149,11 +148,10 @@
         table.redraw();
     }
     function addColumn() {
-        const name = prompt("新列名:");
-        if(name) table.addColumn({title: name, field: name, editor: "input", formatter: "textarea"});
+        const name = prompt("输入列名:");
+        if(name) table.addColumn({title: name, field: name, editor: "input"});
     }
 
-    // 初始加载空表
     initTable([]);
 </script>
 </body>
