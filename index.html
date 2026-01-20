@@ -3,71 +3,94 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Timez37 数据自动表格</title>
+    <title>AI 智能自动化数据表</title>
+    
     <link href="https://cdn.jsdelivr.net/npm/tabulator-tables@5.5.0/dist/css/tabulator_modern.min.css" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/tabulator-tables@5.5.0/dist/js/tabulator.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 
     <style>
-        body { font-family: -apple-system, sans-serif; background: #f0f2f5; margin: 0; padding: 15px; }
-        .card { background: white; border-radius: 12px; padding: 20px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
-        h1 { font-size: 20px; color: #1a73e8; margin-top: 0; }
+        :root { --primary: #1a73e8; --bg: #f8f9fa; }
+        body { font-family: -apple-system, sans-serif; background: var(--bg); margin: 0; padding: 15px; color: #333; }
+        .card { background: white; border-radius: 15px; padding: 20px; box-shadow: 0 4px 12px rgba(0,0,0,0.08); margin-bottom: 20px; }
+        h1 { font-size: 1.4rem; color: var(--primary); margin-top: 0; display: flex; align-items: center; gap: 8px; }
         
-        /* 手机端优化的上传区域 */
+        /* 上传区域 */
         .upload-box {
-            border: 2px dashed #1a73e8;
-            background: #e8f0fe;
-            border-radius: 8px;
-            padding: 30px 10px;
-            text-align: center;
-            color: #1a73e8;
-            margin-bottom: 20px;
-            font-weight: bold;
+            border: 2px dashed var(--primary); background: #e8f0fe;
+            border-radius: 10px; padding: 40px 10px; text-align: center;
+            color: var(--primary); cursor: pointer; transition: 0.3s;
         }
-        
-        .btn-group { display: flex; gap: 10px; margin-bottom: 15px; flex-wrap: wrap; }
+        .upload-box:active { background: #d2e3fc; transform: scale(0.98); }
+
+        /* AI 对话区域 */
+        .ai-section { border-top: 2px solid #eee; pt: 15px; }
+        textarea { 
+            width: 100%; height: 80px; padding: 12px; border: 1px solid #ddd;
+            border-radius: 8px; box-sizing: border-box; font-size: 14px; margin: 10px 0;
+            outline: none; transition: 0.3s;
+        }
+        textarea:focus { border-color: var(--primary); box-shadow: 0 0 0 2px rgba(26,115,232,0.2); }
+
+        /* 按钮样式 */
+        .btn-group { display: flex; gap: 10px; margin: 15px 0; }
         button { 
-            flex: 1; min-width: 100px; padding: 10px; 
-            border: none; border-radius: 6px; 
-            background: #1a73e8; color: white; font-weight: bold;
+            flex: 1; padding: 12px; border: none; border-radius: 8px; 
+            background: var(--primary); color: white; font-weight: bold; cursor: pointer;
         }
-        
-        #data-table { border-radius: 8px; overflow: hidden; }
+        button.secondary { background: #5f6368; }
+        button:disabled { background: #ccc; }
+
+        #ai-result { 
+            background: #f1f3f4; padding: 15px; border-radius: 8px; 
+            font-size: 14px; line-height: 1.6; display: none; white-space: pre-wrap;
+        }
+        #data-table { border-radius: 10px; overflow: hidden; font-size: 13px; }
     </style>
 </head>
 <body>
 
 <div class="card">
-    <h1>📊 自动化数据表格</h1>
+    <h1>📊 自动化数据表</h1>
     
     <div class="upload-box" onclick="document.getElementById('file-input').click()">
-        点击这里选择本地 Excel 或 CSV 文件
+        <strong>📁 点击上传 Excel 或 CSV 文件</strong>
+        <p style="font-size: 12px; margin-top: 8px; opacity: 0.7;">支持自动解析表头和数据</p>
         <input type="file" id="file-input" hidden accept=".xlsx, .xls, .csv">
     </div>
 
     <div class="btn-group">
-        <button onclick="downloadCSV()">导出为 CSV</button>
-        <button onclick="clearTable()" style="background:#ea4335;">清空表格</button>
+        <button class="secondary" onclick="clearAll()">清空</button>
+        <button onclick="exportCSV()">下载 CSV</button>
     </div>
 
     <div id="data-table"></div>
 </div>
 
+<div class="card ai-section">
+    <h1>🤖 AI 数据助手</h1>
+    <p style="font-size: 12px; color: #666;">你可以问：分析这份数据的趋势、谁的数据最高等</p>
+    
+    <textarea id="ai-input" placeholder="请在这里输入你的指令..."></textarea>
+    <button id="ai-btn" onclick="askAI()">开始智能分析</button>
+    
+    <div id="ai-result"></div>
+</div>
+
 <script>
     var table;
 
-    // 1. 初始化表格配置
+    // 1. 初始化空表格
     table = new Tabulator("#data-table", {
-        height: "500px", // 表格高度
-        layout: "fitColumns", // 列宽自适应
-        placeholder: "等待上传数据...", // 空数据时显示
-        autoColumns: true, // 核心：根据上传的文件自动生成表头
-        pagination: "local", // 本地分页
-        paginationSize: 15,
-        movableColumns: true, // 允许拖动列
+        height: "400px",
+        layout: "fitColumns",
+        placeholder: "等待数据上传...",
+        autoColumns: true, // 核心：自动生成表头
+        pagination: "local",
+        paginationSize: 10,
     });
 
-    // 2. 监听文件上传
+    // 2. 文件上传解析逻辑
     document.getElementById('file-input').addEventListener('change', function(e) {
         var file = e.target.files[0];
         if (!file) return;
@@ -76,32 +99,61 @@
         reader.onload = function(e) {
             var data = new Uint8Array(e.target.result);
             var workbook = XLSX.read(data, {type: 'array'});
-            
-            // 获取第一个工作表
-            var firstSheet = workbook.Sheets[workbook.SheetNames[0]];
-            // 转化为 JSON 数组
-            var json = XLSX.utils.sheet_to_json(firstSheet);
+            var worksheet = workbook.Sheets[workbook.SheetNames[0]];
+            var json = XLSX.utils.sheet_to_json(worksheet);
             
             if (json.length > 0) {
-                // 将数据载入表格
                 table.setData(json);
-                alert("加载成功！已处理 " + json.length + " 行数据");
             } else {
-                alert("文件是空的或格式不正确");
+                alert("文件内容为空！");
             }
         };
         reader.readAsArrayBuffer(file);
     });
 
-    // 3. 导出功能
-    function downloadCSV() {
-        table.download("csv", "my_data.csv");
+    // 3. 对接 AI 处理逻辑
+    async function askAI() {
+        const prompt = document.getElementById('ai-input').value;
+        const tableData = table.getData();
+        const resultDiv = document.getElementById('ai-result');
+        const btn = document.getElementById('ai-btn');
+
+        if (!tableData.length) return alert("请先上传表格数据！");
+        if (!prompt) return alert("请输入你的问题！");
+
+        // 界面反馈
+        resultDiv.style.display = "block";
+        resultDiv.innerText = "🤖 AI 正在处理数据，请稍后...";
+        btn.disabled = true;
+
+        try {
+            // 这里对接你 GitHub 仓库里的 /api/ai
+            const response = await fetch('/api/ai', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ 
+                    tableData: tableData.slice(0, 50), // 传输前50行防止超过AI长度限制
+                    prompt: prompt 
+                })
+            });
+
+            const resData = await response.json();
+            // 显示结果（假设返回的格式是 { response: "xxx" }）
+            resultDiv.innerText = resData.response || JSON.stringify(resData);
+        } catch (error) {
+            resultDiv.innerText = "❌ AI 响应失败。请检查是否已部署 /api/ai 脚本并绑定 AI 资源。";
+            console.error(error);
+        } finally {
+            btn.disabled = false;
+        }
     }
 
-    // 4. 清空功能
-    function clearTable() {
-        if(confirm("确定要清空所有数据吗？")) {
-            table.clearData();
+    // 4. 功能函数
+    function exportCSV() { table.download("csv", "data_export.csv"); }
+    function clearAll() { 
+        if(confirm("确定清空数据？")) {
+            table.clearData(); 
+            document.getElementById('ai-result').style.display = "none";
         }
     }
 </script>
