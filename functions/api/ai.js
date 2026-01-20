@@ -1,26 +1,38 @@
 export async function onRequestPost(context) {
     try {
-        const { tableData, textData, prompt } = await context.request.json();
+        // 1. 获取前端传来的数据
+        const requestData = await context.request.json();
+        const { tableData, textData, prompt } = requestData;
         
+        // 2. 检查 Cloudflare 后台是否绑定了 AI 资源
         if (!context.env.AI) {
-            return new Response(JSON.stringify({ response: "错误：未在后台绑定 AI 资源！" }), { status: 500 });
+            return new Response(JSON.stringify({ response: "错误：未在 Cloudflare 后台绑定 AI 资源！请检查设置 -> 函数 -> AI 绑定。" }), { status: 500 });
         }
 
-        // 构造发送给 AI 的数据
-        let dataContext = textData || JSON.stringify(tableData);
+        // 3. 整理发送给 AI 的内容（优先处理文字，没有文字则处理表格）
+        let dataContext = "";
+        if (textData) {
+            dataContext = textData;
+        } else if (tableData) {
+            dataContext = JSON.stringify(tableData.slice(0, 50)); // 只取前50行防止超出AI处理长度
+        } else {
+            dataContext = "暂无数据内容";
+        }
 
+        // 4. 调用 Cloudflare 内置模型
         const result = await context.env.AI.run('@cf/meta/llama-3-8b-instruct', {
             messages: [
-                { role: 'system', content: '你是一个专业分析师。请基于提供的数据回答问题。' },
-                { role: 'user', content: `数据：\n${dataContext}\n\n指令：${prompt}` }
+                { role: 'system', content: '你是一个专业的数据助手，请基于提供的内容回答用户问题。' },
+                { role: 'user', content: `已知数据内容：\n${dataContext}\n\n我的问题是：${prompt}` }
             ]
         });
 
-        // 兼容不同版本的 Cloudflare AI 返回格式
-        const finalMsg = result.response || result.result || "AI 已响应但未产生文本。";
-        return new Response(JSON.stringify({ response: finalMsg }));
+        // 5. 返回结果给网页
+        const finalAnswer = result.response || result.result || "AI 忙碌中，请稍后再试。";
+        return new Response(JSON.stringify({ response: finalAnswer }));
 
     } catch (err) {
-        return new Response(JSON.stringify({ response: "后端出错: " + err.message }), { status: 500 });
+        // 捕捉错误并返回，防止页面长时间没反应
+        return new Response(JSON.stringify({ response: "后端运行出错: " + err.message }), { status: 500 });
     }
 }
