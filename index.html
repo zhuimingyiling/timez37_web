@@ -184,38 +184,44 @@ fileInput.onchange=e=>{
     if(!file) return;
     const reader=new FileReader();
 
-    reader.onload=ev=>{
-        try{
-            let data=[];
-            if(file.name.endsWith('.csv')){
-                // 确保 PapaParse 加载成功
-                if(typeof Papa === 'undefined') { toast("库文件加载中..."); return; }
-                data=Papa.parse(ev.target.result,{header:true, skipEmptyLines: true}).data;
-            }else{
-                // 确保 XLSX 加载成功
-                if(typeof XLSX === 'undefined') { toast("库文件加载中..."); return; }
-                
-                const dataArray = new Uint8Array(ev.target.result);
-                // 修复 1：使用 cellText:true 和 raw:false 强制读取手机号文本
-                const wb=XLSX.read(dataArray,{type:'array', cellText:true, raw:false});
-                const sheet=wb.Sheets[wb.SheetNames[0]];
-                
-                // 修复 2：智能识别表头位置。针对图一的格式，range:2 表示从第 3 行开始读
-                // 这里我们默认从第 3 行开始读，以适配你的“摄影社团”名单
-                data=XLSX.utils.sheet_to_json(sheet,{defval:"", range: 2});
+        reader.onload = ev => {
+        try {
+            // 确保 XLSX 加载成功
+            if (typeof XLSX === 'undefined') { toast("库文件加载中..."); return; }
+
+            const dataArray = new Uint8Array(ev.target.result);
+            // 修复：使用 cellText:true 和 raw:false 强制读取手机号文本
+            const wb = XLSX.read(dataArray, { type: 'array', cellText: true, raw: false });
+            const sheetName = wb.SheetNames[0];
+            const sheet = wb.Sheets[sheetName];
+
+            // --- 核心修复：防止 slice 读取 null 的报错 ---
+            if (!sheet || !sheet['!ref']) {
+                toast("表格内容为空或格式不支持");
+                return;
             }
-            
-            if(data.length === 0) {
-                toast("未发现有效数据");
+
+            // 智能识别：如果 A1-A3 都是空的，则尝试自动检测范围，否则强制跳过 2 行标题
+            // range: 2 适配你那种前两行是“摄影社团...”标题的表格
+            const res = XLSX.utils.sheet_to_json(sheet, { 
+                defval: "", 
+                range: 2, 
+                blankrows: false // 关键：跳过所有空白行，防止解析到表格底部的空行
+            });
+
+            if (!res || res.length === 0) {
+                toast("未发现有效数据，请检查文件");
             } else {
-                initTable(normalizeData(data));
+                initTable(normalizeData(res));
                 toast("导入成功");
             }
-        }catch(err){
+        } catch (err) {
             console.error(err);
-            toast("解析错误：" + err.message);
+            // 给出更人性化的提示
+            toast("解析错误：" + (err.message.includes('slice') ? "Excel范围识别失败，请检查文件末尾是否有乱码" : err.message));
         }
     };
+
 
     if(file.name.endsWith('.csv')) {
         reader.readAsText(file);
