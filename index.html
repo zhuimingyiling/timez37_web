@@ -167,11 +167,11 @@ const initTable = (data=[],columns=null)=>{
     });
 };
 
+// 格式化数据：去除空格并防止电话号码变成科学计数法
 const normalizeData = rows => rows.map(r=>{
     for(const k in r){
         if(typeof r[k]==='string'){
             r[k]=r[k].trim();
-            if(/^\d{11,}$/.test(r[k])) r[k]="'"+r[k];
         }
     }
     return r;
@@ -185,29 +185,43 @@ fileInput.onchange=e=>{
     const reader=new FileReader();
 
     reader.onload=ev=>{
-        setTimeout(()=>{
-            try{
-                let data=[];
-                if(file.name.endsWith('.csv')){
-                    data=Papa.parse(ev.target.result,{header:true}).data;
-                }else{
-                    const wb=XLSX.read(ev.target.result,{type:'array',raw:false});
-                    const sheet=wb.Sheets[wb.SheetNames[0]];
-                    const skip = sheet['A1'] && !sheet['B1'] ? 1 : 0;
-                    data=XLSX.utils.sheet_to_json(sheet,{defval:"",range:skip});
-                }
+        try{
+            let data=[];
+            if(file.name.endsWith('.csv')){
+                // 确保 PapaParse 加载成功
+                if(typeof Papa === 'undefined') { toast("库文件加载中..."); return; }
+                data=Papa.parse(ev.target.result,{header:true, skipEmptyLines: true}).data;
+            }else{
+                // 确保 XLSX 加载成功
+                if(typeof XLSX === 'undefined') { toast("库文件加载中..."); return; }
+                
+                const dataArray = new Uint8Array(ev.target.result);
+                // 修复 1：使用 cellText:true 和 raw:false 强制读取手机号文本
+                const wb=XLSX.read(dataArray,{type:'array', cellText:true, raw:false});
+                const sheet=wb.Sheets[wb.SheetNames[0]];
+                
+                // 修复 2：智能识别表头位置。针对图一的格式，range:2 表示从第 3 行开始读
+                // 这里我们默认从第 3 行开始读，以适配你的“摄影社团”名单
+                data=XLSX.utils.sheet_to_json(sheet,{defval:"", range: 2});
+            }
+            
+            if(data.length === 0) {
+                toast("未发现有效数据");
+            } else {
                 initTable(normalizeData(data));
                 toast("导入成功");
-            }catch{
-                toast("文件解析失败");
             }
-        },0);
+        }catch(err){
+            console.error(err);
+            toast("解析错误：" + err.message);
+        }
     };
 
-    file.name.endsWith('.csv')
-        ? reader.readAsText(file)
-        : reader.readAsArrayBuffer(file);
-
+    if(file.name.endsWith('.csv')) {
+        reader.readAsText(file);
+    } else {
+        reader.readAsArrayBuffer(file);
+    }
     fileInput.value="";
 };
 
@@ -218,7 +232,7 @@ document.getElementById('exportBtn').onclick=()=>{
 document.getElementById('addRowBtn').onclick=()=>table.addRow({},true);
 
 document.getElementById('addColBtn').onclick=()=>{
-    const title=prompt("列名");
+    const title=prompt("请输入新列名");
     if(!title) return;
     table.addColumn({
         title,
