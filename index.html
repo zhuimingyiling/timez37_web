@@ -3,12 +3,12 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=0.5, minimum-scale=0.01, maximum-scale=2.0, user-scalable=yes">
-    <title>WPS-WEB 高级修复版</title>
+    <title>WPS-WEB 本地加速版</title>
     
-    <link href="https://cdn.staticfile.org/tabulator/5.1.0/css/tabulator_modern.min.css" rel="stylesheet">
-    <script src="https://cdn.staticfile.org/tabulator/5.1.0/js/tabulator.min.js"></script>
-    <script src="https://cdn.staticfile.org/xlsx/0.18.5/xlsx.full.min.js"></script>
-    <script src="https://cdn.staticfile.org/PapaParse/5.3.1/papaparse.min.js"></script>
+    <link href="./tabulator_modern.min.css" rel="stylesheet">
+    <script src="./tabulator.min.js"></script>
+    <script src="./xlsx.full.min.js"></script>
+    <script src="./papaparse.min.js"></script>
     
     <style>
         :root { --primary-color: #d32f2f; --vip-gold: #ffc107; --bg-color: #f0f2f5; --border-color: #e0e0e0; }
@@ -34,7 +34,7 @@
         .vip-side-panel {
             position: fixed; top: 0; right: -300px; bottom: 0; width: 280px;
             background: rgba(255, 255, 255, 0.75); /* 半透明白 */
-            backdrop-filter: blur(15px);           /* 高斯模糊核心 */
+            backdrop-filter: blur(15px);           /* 高斯模糊核心代码 */
             -webkit-backdrop-filter: blur(15px); 
             border-left: 1px solid rgba(255, 255, 255, 0.3);
             transition: 0.4s cubic-bezier(0.4, 0, 0.2, 1); 
@@ -121,7 +121,7 @@
                 });
                 return defs;
             },
-            placeholder: "点击导入 Excel 开始办公",
+            placeholder: "核心组件已就绪，请导入名单",
         });
 
         document.getElementById("filter-input").addEventListener("keyup", function(e){
@@ -138,11 +138,11 @@
         reader.onload = (ev) => {
             try {
                 const data = new Uint8Array(ev.target.result);
-                // 关键修复点：raw:false 强制读取格式化后的文本（如电话号码）
+                // 修复点：raw:false 保证电话号码不会变成 1.98E+10
                 const wb = XLSX.read(data, {type: 'array', cellDates: true, cellText: true, raw: false});
                 const sheet = wb.Sheets[wb.SheetNames[0]];
                 
-                // 关键修复点：range: 2 自动跳过前两行合并的标题，直接读取数据表头
+                // 修复点：range: 2 跳过前两行的“摄影社团学生名单汇总”大标题
                 const res = XLSX.utils.sheet_to_json(sheet, {defval: "", range: 2});
                 
                 initTable(res);
@@ -168,6 +168,7 @@
         if(name) table.addColumn({title: name, field: name, editor: "input", headerFilter: "input"});
     }
 
+    // 初始化
     initTable([]);
 </script>
 </body>
