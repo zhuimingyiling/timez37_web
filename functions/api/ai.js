@@ -1,38 +1,50 @@
 export async function onRequestPost(context) {
     try {
-        // 1. 获取前端传来的数据
-        const requestData = await context.request.json();
-        const { tableData, textData, prompt } = requestData;
+        const { tableData, textData, prompt } = await context.request.json();
         
-        // 2. 检查 Cloudflare 后台是否绑定了 AI 资源
         if (!context.env.AI) {
-            return new Response(JSON.stringify({ response: "错误：未在 Cloudflare 后台绑定 AI 资源！请检查设置 -> 函数 -> AI 绑定。" }), { status: 500 });
+            return new Response(JSON.stringify({ response: "请在 Cloudflare 后台绑定 AI 资源。" }), { status: 500 });
         }
 
-        // 3. 整理发送给 AI 的内容（优先处理文字，没有文字则处理表格）
-        let dataContext = "";
-        if (textData) {
-            dataContext = textData;
-        } else if (tableData) {
-            dataContext = JSON.stringify(tableData.slice(0, 50)); // 只取前50行防止超出AI处理长度
+        // 提取数据：如果是表格，只取前 30 行，并把每一行转成好理解的文字
+        let contextContent = "";
+        if (tableData && tableData.length > 0) {
+            contextContent = tableData.slice(0, 30).map(row => JSON.stringify(row)).join("\n");
         } else {
-            dataContext = "暂无数据内容";
+            contextContent = textData || "无有效数据";
         }
 
-        // 4. 调用 Cloudflare 内置模型
         const result = await context.env.AI.run('@cf/meta/llama-3-8b-instruct', {
             messages: [
-                { role: 'system', content: '你是一个专业的数据助手，请基于提供的内容回答用户问题。' },
-                { role: 'user', content: `已知数据内容：\n${dataContext}\n\n我的问题是：${prompt}` }
+                { 
+                    role: 'system', 
+                    content: '你是一个贴心的中文数据助手。请直接回答用户的问题，不要说废话。如果数据是名单，请礼貌地分析或总结。' 
+                },
+                { 
+                    role: 'user', 
+                    content: `以下是数据内容：\n${contextContent}\n\n我的要求是：${prompt}` 
+                }
             ]
         });
 
-        // 5. 返回结果给网页
-        const finalAnswer = result.response || result.result || "AI 忙碌中，请稍后再试。";
-        return new Response(JSON.stringify({ response: finalAnswer }));
+        // 核心修复：确保拿到的 response 是纯文字
+        let finalResponse = "";
+        if (typeof result.response === 'string') {
+            finalResponse = result.response;
+        } else if (result.result && result.result.response) {
+            finalResponse = result.result.response;
+        } else {
+            finalResponse = JSON.stringify(result).replace(/["{}]/g, ''); // 兜底处理：去掉乱七八糟的符号
+        }
+
+        return new Response(JSON.stringify({ response: finalAnswerFormatter(finalResponse) }));
 
     } catch (err) {
-        // 捕捉错误并返回，防止页面长时间没反应
-        return new Response(JSON.stringify({ response: "后端运行出错: " + err.message }), { status: 500 });
+        return new Response(JSON.stringify({ response: "分析遇到点小问题: " + err.message }));
     }
+}
+
+// 辅助函数：把 AI 返回的奇怪符号过滤掉
+function finalAnswerFormatter(text) {
+    return text.trim();
 }
