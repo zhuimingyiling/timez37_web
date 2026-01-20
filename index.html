@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>全格式智能解析工具</title>
+    <title>AI 智能全格式解析工具</title>
     
     <link href="https://cdn.jsdelivr.net/npm/tabulator-tables@5.5.0/dist/css/tabulator_modern.min.css" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/tabulator-tables@5.5.0/dist/js/tabulator.min.js"></script>
@@ -13,78 +13,130 @@
 
     <style>
         :root { --primary: #1a73e8; }
-        body { font-family: sans-serif; background: #f8f9fa; padding: 15px; }
-        .card { background: white; border-radius: 12px; padding: 20px; box-shadow: 0 4px 10px rgba(0,0,0,0.1); margin-bottom: 20px; }
-        .upload-box { border: 2px dashed var(--primary); padding: 30px; text-align: center; border-radius: 10px; cursor: pointer; background: #e8f0fe; }
-        #preview-area { background: #fff; min-height: 200px; border: 1px solid #ddd; border-radius: 8px; padding: 10px; overflow: auto; }
-        .status-tag { display: inline-block; padding: 4px 8px; border-radius: 4px; font-size: 12px; background: #eee; margin-bottom: 10px; }
+        body { font-family: -apple-system, sans-serif; background: #f8f9fa; margin: 0; padding: 15px; }
+        .card { background: white; border-radius: 15px; padding: 20px; box-shadow: 0 4px 12px rgba(0,0,0,0.08); margin-bottom: 20px; }
+        h1 { font-size: 1.2rem; color: var(--primary); margin: 0 0 15px 0; }
+        .upload-box { border: 2px dashed var(--primary); background: #e8f0fe; border-radius: 10px; padding: 30px; text-align: center; color: var(--primary); cursor: pointer; }
+        .btn-group { display: flex; gap: 10px; margin: 15px 0; }
+        button { flex: 1; padding: 12px; border: none; border-radius: 8px; background: var(--primary); color: white; font-weight: bold; }
+        button:disabled { background: #ccc; }
+        #data-table { border-radius: 8px; overflow: hidden; margin-top: 10px; }
+        #text-preview { background: #fff; padding: 10px; border: 1px solid #ddd; border-radius: 8px; display: none; white-space: pre-wrap; font-size: 14px; }
+        textarea { width: 100%; height: 80px; padding: 10px; border-radius: 8px; border: 1px solid #ddd; margin: 10px 0; box-sizing: border-box; }
+        #ai-result { background: #f1f3f4; padding: 15px; border-radius: 8px; display: none; font-size: 14px; border-left: 4px solid var(--primary); }
     </style>
 </head>
 <body>
 
 <div class="card">
-    <h2>📂 全格式文档解析</h2>
-    <div class="status-tag" id="file-type">未选择文件</div>
-    
+    <h1>📂 文档智能解析</h1>
     <div class="upload-box" onclick="document.getElementById('file-input').click()">
         <strong>点击上传文件</strong>
-        <p>支持 .xlsx, .csv, .docx, .pdf</p>
+        <p style="font-size: 12px; opacity: 0.8;">支持 Excel, CSV, Word, PDF</p>
         <input type="file" id="file-input" hidden accept=".xlsx, .xls, .csv, .docx, .pdf">
     </div>
+    <div class="btn-group">
+        <button onclick="location.reload()" style="background:#5f6368">清空重刷</button>
+        <button onclick="table.download('csv', 'export.csv')">导出CSV</button>
+    </div>
+    <div id="data-table"></div>
+    <div id="text-preview"></div>
+</div>
 
-    <div style="margin-top:20px;">
-        <h4>内容预览：</h4>
-        <div id="data-table"></div> <div id="text-preview" style="display:none; white-space: pre-wrap;"></div> </div>
+<div class="card">
+    <h1>🤖 AI 数据助手</h1>
+    <textarea id="ai-input" placeholder="请告诉我你想对这份数据做什么？例如：总结名单、分析趋势..."></textarea>
+    <button id="ai-btn" onclick="askAI()">开始分析</button>
+    <div id="ai-result"></div>
 </div>
 
 <script>
-    var table = new Tabulator("#data-table", { height: "400px", layout: "fitColumns", autoColumns: true });
+    var table = new Tabulator("#data-table", { 
+        height: "400px", 
+        layout: "fitDataFill", 
+        autoColumns: true,
+        autoColumnsDefinitions: (defs) => { defs.forEach(d => d.headerFilter = true); return defs; }
+    });
+    var currentTextData = ""; // 存储非表格文档文字
 
     document.getElementById('file-input').addEventListener('change', async function(e) {
         const file = e.target.files[0];
         if (!file) return;
+        const name = file.name.toLowerCase();
         
-        const fileName = file.name.toLowerCase();
-        document.getElementById('file-type').innerText = "已选择: " + fileName;
-        
-        // 隐藏上一次的结果
         document.getElementById('data-table').style.display = "none";
         document.getElementById('text-preview').style.display = "none";
 
-        // 1. 处理 Excel/CSV
-        if (fileName.endsWith('.xlsx') || fileName.endsWith('.xls') || fileName.endsWith('.csv')) {
+        // 1. 处理 Excel/CSV (智能跳行版)
+        if (name.endsWith('.xlsx') || name.endsWith('.xls') || name.endsWith('.csv')) {
             const data = await file.arrayBuffer();
             const workbook = XLSX.read(data);
-            const json = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]]);
+            const sheet = workbook.Sheets[workbook.SheetNames[0]];
+            const raw = XLSX.utils.sheet_to_json(sheet, { header: 1 });
+            
+            // 自动寻找包含关键词的行作为表头（解决图二问题）
+            let headIdx = raw.findIndex(r => r.some(c => String(c).includes("序号") || String(c).includes("姓名") || String(c).includes("班级")));
+            headIdx = headIdx === -1 ? 0 : headIdx;
+
+            const finalData = XLSX.utils.sheet_to_json(sheet, { range: headIdx });
             document.getElementById('data-table').style.display = "block";
-            table.setData(json);
+            table.setData(finalData);
+            currentTextData = ""; 
         } 
-        // 2. 处理 Word (.docx)
-        else if (fileName.endsWith('.docx')) {
-            const arrayBuffer = await file.arrayBuffer();
-            const result = await mammoth.extractRawText({arrayBuffer: arrayBuffer});
-            showText(result.value);
+        // 2. 处理 Word
+        else if (name.endsWith('.docx')) {
+            const res = await mammoth.extractRawText({ arrayBuffer: await file.arrayBuffer() });
+            showText(res.value);
         }
         // 3. 处理 PDF
-        else if (fileName.endsWith('.pdf')) {
-            const arrayBuffer = await file.arrayBuffer();
-            const pdf = await pdfjsLib.getDocument({data: arrayBuffer}).promise;
-            let fullText = "";
+        else if (name.endsWith('.pdf')) {
+            pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js';
+            const pdf = await pdfjsLib.getDocument({ data: await file.arrayBuffer() }).promise;
+            let text = "";
             for (let i = 1; i <= pdf.numPages; i++) {
                 const page = await pdf.getPage(i);
                 const content = await page.getTextContent();
-                fullText += content.items.map(item => item.str).join(" ") + "\n";
+                text += content.items.map(item => item.str).join(" ") + "\n";
             }
-            showText(fullText);
+            showText(text);
         }
     });
 
-    function showText(text) {
+    function showText(t) {
         const el = document.getElementById('text-preview');
         el.style.display = "block";
-        el.innerText = text;
-        // 把文字存入 window 对象，方便 AI 读取
-        window.currentDocumentText = text; 
+        el.innerText = t;
+        currentTextData = t;
+    }
+
+    async function askAI() {
+        const prompt = document.getElementById('ai-input').value;
+        const tableData = table.getData();
+        const btn = document.getElementById('ai-btn');
+        const resDiv = document.getElementById('ai-result');
+
+        if (!prompt) return alert("请输入问题");
+        btn.disabled = true;
+        resDiv.style.display = "block";
+        resDiv.innerText = "⏳ AI 正在思考...";
+
+        try {
+            const response = await fetch('/api/ai', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ 
+                    tableData: tableData.length > 0 ? tableData.slice(0, 50) : null,
+                    textData: currentTextData,
+                    prompt: prompt 
+                })
+            });
+            const data = await response.json();
+            resDiv.innerText = data.response;
+        } catch (err) {
+            resDiv.innerText = "❌ 失败: 请确保已在 Cloudflare 绑定 AI 并在 functions/api/ 下创建 ai.js";
+        } finally {
+            btn.disabled = false;
+        }
     }
 </script>
 </body>
