@@ -3,107 +3,144 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>全格式智能表格工具 - 离线版</title>
+    <title>高级表格编辑器 - 增强版</title>
     <link href="https://unpkg.com/tabulator-tables@5.5.0/dist/css/tabulator_modern.min.css" rel="stylesheet">
-    <script type="text/javascript" src="https://unpkg.com/tabulator-tables@5.5.0/dist/js/tabulator.min.js"></script>
+    <script src="https://unpkg.com/tabulator-tables@5.5.0/dist/js/tabulator.min.js"></script>
     <script src="https://unpkg.com/xlsx/dist/xlsx.full.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.0/papaparse.min.js"></script>
     <style>
-        body { font-family: 'PingFang SC', sans-serif; background: #f4f7f9; padding: 20px; }
-        .container { max-width: 1000px; margin: 0 auto; background: white; padding: 30px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); }
-        .header { text-align: center; margin-bottom: 30px; }
-        .upload-area { border: 2px dashed #3498db; padding: 40px; text-align: center; border-radius: 8px; cursor: pointer; transition: 0.3s; }
-        .upload-area:hover { background: #f0f7ff; }
-        .control-panel { margin: 20px 0; display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
-        .btn { padding: 8px 16px; border: none; border-radius: 4px; cursor: pointer; font-size: 14px; transition: 0.2s; }
-        .btn-primary { background: #3498db; color: white; }
-        .btn-success { background: #2ecc71; color: white; }
-        .btn-danger { background: #e74c3c; color: white; }
-        #data-table { margin-top: 20px; border-radius: 8px; overflow: hidden; }
-        .style-tool { font-size: 13px; color: #666; }
+        :root { --primary-color: #3498db; }
+        body { font-family: system-ui; background: #f0f2f5; padding: 15px; margin: 0; }
+        .card { background: white; border-radius: 12px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); padding: 20px; max-width: 1200px; margin: auto; }
+        .drop-zone { border: 2px dashed #ccc; border-radius: 10px; padding: 30px; text-align: center; color: #666; cursor: pointer; transition: 0.3s; margin-bottom: 20px; }
+        .drop-zone:hover { border-color: var(--primary-color); background: #f8fbff; }
+        .toolbar { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 15px; align-items: center; }
+        .btn { border: none; padding: 8px 15px; border-radius: 6px; cursor: pointer; font-size: 14px; font-weight: 500; }
+        .btn-blue { background: var(--primary-color); color: white; }
+        .btn-green { background: #27ae60; color: white; }
+        #table-container { border-radius: 8px; overflow: hidden; border: 1px solid #ddd; }
+        .format-tags { font-size: 12px; color: #888; margin-top: 5px; }
     </style>
 </head>
 <body>
 
-<div class="container">
-    <div class="header">
-        <h1>📊 全格式自定义表格制作工具</h1>
-        <p>支持拖拽排版、双击编辑、一键导出（无需AI，极速响应）</p>
+<div class="card">
+    <h2 style="margin-top:0">📑 高级表格处理中心</h2>
+    
+    <div class="drop-zone" id="dropZone">
+        <strong>点击或拖拽文件至此</strong>
+        <div class="format-tags">支持格式：.xlsx, .xls, .csv, .txt (Tab分隔), .json</div>
+        <input type="file" id="fileInput" hidden accept=".xlsx, .xls, .csv, .txt, .json">
     </div>
 
-    <div class="upload-area" onclick="document.getElementById('fileInput').click()">
-        <p>点击或拖拽 Excel/CSV 文件到这里</p>
-        <input type="file" id="fileInput" hidden accept=".xlsx, .xls, .csv">
+    <div class="toolbar">
+        <button class="btn btn-blue" onclick="table.addRow({}, true)">➕ 新增行</button>
+        <button class="btn btn-blue" onclick="addColumn()">➕ 新增列</button>
+        <button class="btn btn-green" onclick="exportData()">📥 导出 Excel</button>
+        <button class="btn" onclick="table.undo()">↩️ 撤销</button>
+        <span style="flex-grow:1"></span>
+        <label style="font-size:12px">主题色：<input type="color" value="#3498db" onchange="changeColor(this.value)"></label>
     </div>
 
-    <div class="control-panel">
-        <button class="btn btn-primary" onclick="addRow()">➕ 添加行</button>
-        <button class="btn btn-primary" onclick="addColumn()">➕ 添加列</button>
-        <button class="btn btn-success" onclick="downloadExcel()">📥 导出 Excel</button>
-        <button class="btn btn-danger" onclick="clearTable()">🗑️ 清空表格</button>
-        <div class="style-tool">
-            | 字体大小: <input type="number" id="fontSize" value="14" style="width: 40px;" onchange="updateStyle()">
-            | 主题色: <input type="color" id="themeColor" value="#3498db" onchange="updateStyle()">
-        </div>
-    </div>
-
-    <div id="data-table"></div>
+    <div id="table-container"></div>
 </div>
 
 <script>
     var table;
 
-    // 初始化表格
-    function initTable(data = []) {
-        table = new Tabulator("#data-table", {
+    // 核心渲染函数
+    function renderTable(data) {
+        if (table) table.destroy();
+        
+        table = new Tabulator("#table-container", {
             data: data,
-            autoColumns: true, // 自动生成表头
-            layout: "fitColumns",
-            movableColumns: true, // 允许拖拽列
-            pagination: "local",
-            paginationSize: 10,
-            columnDefaults: {
-                editor: "input", // 开启双击编辑
-                headerFilter: "input", // 开启筛选
-                hozAlign: "center",
+            autoColumns: true, 
+            autoColumnsDefinitions: function(definitions) {
+                // 自动修复：识别所有列并赋予编辑功能
+                definitions.forEach((column) => {
+                    column.editor = "input";
+                    column.headerFilter = "input";
+                    column.resizable = true;
+                });
+                return definitions;
             },
-            rowContextMenu: [
-                { label: "删除此行", action: function(e, row){ row.delete(); } }
-            ]
+            layout: "fitColumns",
+            pagination: "local",
+            paginationSize: 20,
+            movableColumns: true,
+            history: true,
+            clipboard: true, // 支持粘贴
+            placeholder: "暂无数据，请上传文件",
         });
     }
 
-    // 处理文件上传
-    document.getElementById('fileInput').addEventListener('change', function(e) {
-        var file = e.target.files[0];
-        var reader = new FileReader();
-        reader.onload = function(evt) {
-            var data = new Uint8Array(evt.target.result);
-            var workbook = XLSX.read(data, {type: 'array'});
-            var sheet = workbook.Sheets[workbook.SheetNames[0]];
-            var json = XLSX.utils.sheet_to_json(sheet);
-            initTable(json);
+    // 多格式智能识别引擎
+    function processFile(file) {
+        const reader = new FileReader();
+        const extension = file.name.split('.').pop().toLowerCase();
+
+        reader.onload = function(e) {
+            let results = [];
+            const data = e.target.result;
+
+            if (['xlsx', 'xls'].includes(extension)) {
+                // Excel 增强解析：处理合并单元格和空行
+                const workbook = XLSX.read(data, {type: 'binary', cellDates: true});
+                const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
+                results = XLSX.utils.sheet_to_json(firstSheet, {defval: ""});
+            } 
+            else if (extension === 'csv' || extension === 'txt') {
+                // CSV/文本解析：自动识别分隔符（逗号或 Tab）
+                Papa.parse(data, {
+                    header: true,
+                    skipEmptyLines: true,
+                    complete: function(res) { renderTable(res.data); }
+                });
+                return;
+            }
+            else if (extension === 'json') {
+                results = JSON.parse(data);
+            }
+
+            renderTable(results);
         };
-        reader.readAsArrayBuffer(file);
-    });
 
-    // 辅助功能
-    function addRow() { table.addRow({}); }
-    function addColumn() { 
-        var colName = prompt("请输入列名", "新列");
-        if(colName) table.addColumn({title: colName, field: colName, editor: "input"});
-    }
-    function clearTable() { if(confirm("确定清空吗？")) table.clearData(); }
-    function downloadExcel() { table.download("xlsx", "我的自定义表格.xlsx"); }
-    
-    function updateStyle() {
-        var size = document.getElementById('fontSize').value;
-        var color = document.getElementById('themeColor').value;
-        document.querySelector(".tabulator").style.fontSize = size + "px";
-        document.querySelectorAll(".tabulator-col").forEach(el => el.style.backgroundColor = color);
+        if (['xlsx', 'xls'].includes(extension)) {
+            reader.readAsBinaryString(file);
+        } else {
+            reader.readAsText(file);
+        }
     }
 
-    // 默认空表
-    initTable([{"序号":"1", "姓名":"示例", "内容":"双击我修改"}]);
+    // 事件绑定
+    const dropZone = document.getElementById('dropZone');
+    const fileInput = document.getElementById('fileInput');
+
+    dropZone.onclick = () => fileInput.click();
+    fileInput.onchange = (e) => processFile(e.target.files[0]);
+
+    dropZone.ondragover = (e) => { e.preventDefault(); dropZone.style.borderColor = "#3498db"; };
+    dropZone.ondrop = (e) => {
+        e.preventDefault();
+        processFile(e.dataTransfer.files[0]);
+    };
+
+    function addColumn() {
+        const title = prompt("请输入新列名:");
+        if (title) table.addColumn({title: title, field: title, editor: "input"});
+    }
+
+    function exportData() {
+        table.download("xlsx", "已处理表格.xlsx", {sheetName:"MyData"});
+    }
+
+    function changeColor(color) {
+        document.documentElement.style.setProperty('--primary-color', color);
+        document.querySelectorAll(".tabulator-col").forEach(c => c.style.backgroundColor = color);
+    }
+
+    // 初始空状态
+    renderTable([]);
 </script>
 </body>
 </html>
