@@ -2,49 +2,48 @@ export async function onRequestPost(context) {
     try {
         const { tableData, textData, prompt } = await context.request.json();
         
-        if (!context.env.AI) {
-            return new Response(JSON.stringify({ response: "请在 Cloudflare 后台绑定 AI 资源。" }), { status: 500 });
-        }
-
-        // 提取数据：如果是表格，只取前 30 行，并把每一行转成好理解的文字
-        let contextContent = "";
+        // 1. 设置 API KEY (建议在 Cloudflare 后台 Variables 设置)
+        const API_KEY = context.env.API_KEY || "这里填入你的_Google_Gemini_API_Key";
+        
+        // 2. 准备数据上下文
+        let dataContent = "";
         if (tableData && tableData.length > 0) {
-            contextContent = tableData.slice(0, 30).map(row => JSON.stringify(row)).join("\n");
+            // Gemini 对 JSON 的理解能力极强，直接发 JSON 数组即可
+            dataContent = JSON.stringify(tableData.slice(0, 100)); 
         } else {
-            contextContent = textData || "无有效数据";
+            dataContent = textData || "暂无数据";
         }
 
-        const result = await context.env.AI.run('@cf/meta/llama-3-8b-instruct', {
-            messages: [
-                { 
-                    role: 'system', 
-                    content: '你是一个贴心的中文数据助手。请直接回答用户的问题，不要说废话。如果数据是名单，请礼貌地分析或总结。' 
-                },
-                { 
-                    role: 'user', 
-                    content: `以下是数据内容：\n${contextContent}\n\n我的要求是：${prompt}` 
+        // 3. 调用 Google Gemini API
+        const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${API_KEY}`, {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json"
+            },
+            body: JSON.stringify({
+                contents: [{
+                    parts: [{
+                        text: `你是一个专业的数据分析专家。以下是提供的数据内容：\n${dataContent}\n\n请根据以上数据回答用户的问题：${prompt}`
+                    }]
+                }],
+                generationConfig: {
+                    temperature: 0.7,
+                    maxOutputTokens: 2048,
                 }
-            ]
+            })
         });
 
-        // 核心修复：确保拿到的 response 是纯文字
-        let finalResponse = "";
-        if (typeof result.response === 'string') {
-            finalResponse = result.response;
-        } else if (result.result && result.result.response) {
-            finalResponse = result.result.response;
+        const result = await response.json();
+
+        // 4. 解析 Gemini 的返回格式
+        if (result.candidates && result.candidates[0]) {
+            const aiMsg = result.candidates[0].content.parts[0].text;
+            return new Response(JSON.stringify({ response: aiMsg }));
         } else {
-            finalResponse = JSON.stringify(result).replace(/["{}]/g, ''); // 兜底处理：去掉乱七八糟的符号
+            return new Response(JSON.stringify({ response: "Gemini 未能生成回复，请检查 API 状态。" }));
         }
 
-        return new Response(JSON.stringify({ response: finalAnswerFormatter(finalResponse) }));
-
     } catch (err) {
-        return new Response(JSON.stringify({ response: "分析遇到点小问题: " + err.message }));
+        return new Response(JSON.stringify({ response: "Gemini 对接报错: " + err.message }));
     }
-}
-
-// 辅助函数：把 AI 返回的奇怪符号过滤掉
-function finalAnswerFormatter(text) {
-    return text.trim();
 }
