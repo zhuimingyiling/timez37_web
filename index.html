@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, maximum-scale=5.0, user-scalable=yes">
-    <title>极速表格工作台</title>
+    <title>极速表格工作台-修复版</title>
     <link href="https://lf6-cdn-tos.bytecdntp.com/cdn/expire-1-M/tabulator/5.1.0/css/tabulator_modern.min.css" rel="stylesheet">
     <script src="https://lf6-cdn-tos.bytecdntp.com/cdn/expire-1-M/tabulator/5.1.0/js/tabulator.min.js"></script>
     <script src="https://lf26-cdn-tos.bytecdntp.com/cdn/expire-1-M/xlsx/0.18.2/xlsx.full.min.js"></script>
@@ -11,50 +11,19 @@
     <style>
         :root { --primary-color: #3498db; --bg-color: #ffffff; --text-color: #333; --border-color: #e0e0e0; }
         [data-theme="dark"] { --bg-color: #121212; --text-color: #e0e0e0; --border-color: #333; }
-
-        body, html { 
-            height: 100%; margin: 0; padding: 0; 
-            font-family: -apple-system, system-ui, sans-serif;
-            background: var(--bg-color); color: var(--text-color);
-            overflow: hidden; 
-        }
-
-        .app-header {
-            display: flex; align-items: center; justify-content: space-between;
-            padding: 0 15px; height: 50px;
-            border-bottom: 1px solid var(--border-color);
-            background: var(--bg-color);
-            position: sticky; top: 0; z-index: 100;
-        }
-
+        body, html { height: 100%; margin: 0; padding: 0; font-family: -apple-system, system-ui, sans-serif; background: var(--bg-color); color: var(--text-color); overflow: hidden; }
+        .app-header { display: flex; align-items: center; justify-content: space-between; padding: 0 15px; height: 50px; border-bottom: 1px solid var(--border-color); background: var(--bg-color); position: sticky; top: 0; z-index: 100; }
         .main-controls { display: flex; gap: 8px; align-items: center; }
         .logo { font-weight: bold; font-size: 14px; color: var(--primary-color); margin-right: 5px; }
-
         .btn { border: 1px solid var(--border-color); padding: 4px 10px; border-radius: 4px; cursor: pointer; font-size: 12px; background: transparent; color: var(--text-color); }
         .btn-primary { background: var(--primary-color); color: white; border: none; }
-
-        .settings-panel { 
-            position: fixed; top: 50px; right: 0; bottom: 0; width: 220px;
-            background: var(--bg-color); border-left: 1px solid var(--border-color);
-            padding: 20px; display: none; z-index: 1000;
-            box-shadow: -2px 0 10px rgba(0,0,0,0.1);
-        }
+        #table-wrapper { height: calc(100vh - 50px); width: 100%; overflow: auto; }
+        .tabulator-cell { white-space: nowrap !important; border-right: 1px solid var(--border-color) !important; }
+        .settings-panel { position: fixed; top: 50px; right: 0; bottom: 0; width: 220px; background: var(--card-bg); border-left: 1px solid var(--border-color); padding: 20px; display: none; z-index: 1000; box-shadow: -2px 0 10px rgba(0,0,0,0.1); }
         .settings-panel.active { display: block; }
-        .s-item { margin-bottom: 20px; font-size: 13px; }
-
-        /* 表格容器：允许内部横向和纵向滚动 */
-        #table-wrapper { height: calc(100vh - 50px); width: 100%; overflow: auto; -webkit-overflow-scrolling: touch; }
-        .tabulator { border: none !important; font-size: inherit; }
-        
-        /* 核心修改：内容撑开列宽，文字不折行以保证清晰度 */
-        .tabulator-cell { 
-            white-space: nowrap !important; 
-            border-right: 1px solid var(--border-color) !important; 
-        }
     </style>
 </head>
 <body data-theme="light">
-
     <div class="app-header">
         <div class="main-controls">
             <span class="logo">WORKFLOW</span>
@@ -62,52 +31,32 @@
             <input type="file" id="fileInput" hidden accept=".xlsx, .xls, .csv">
             <button class="btn" onclick="table.addRow({}, true)">增行</button>
             <button class="btn" onclick="addColumn()">增列</button>
-            <button class="btn" onclick="table.download('xlsx', 'data.xlsx')">导出</button>
+            <button class="btn" onclick="table.download('xlsx', 'export_data.xlsx')">导出</button>
         </div>
         <div style="cursor:pointer; font-size:18px; padding: 5px;" onclick="toggleSettings()">⚙️</div>
     </div>
 
     <div class="settings-panel" id="settingsPanel">
-        <h4 style="margin-top:0">个性化设置</h4>
-        <div class="s-item">
-            <label><input type="checkbox" onchange="toggleDarkMode(this.checked)"> 深色模式</label>
-        </div>
-        <div class="s-item">
-            主题颜色<br>
-            <input type="color" value="#3498db" style="width:100%; height:30px; margin-top:5px;" onchange="updateThemeColor(this.value)">
-        </div>
-        <div class="s-item">
-            字体大小<br>
-            <input type="range" min="10" max="24" value="14" style="width:100%" onchange="updateFontSize(this.value)">
-        </div>
-        <button class="btn" style="width:100%; margin-top:10px;" onclick="toggleSettings()">保存并关闭</button>
+        <h4 style="margin-top:0">设置</h4>
+        <label><input type="checkbox" onchange="toggleDarkMode(this.checked)"> 深色模式</label><br><br>
+        <label>字体大小<input type="range" min="10" max="24" value="14" style="width:100%" onchange="updateFontSize(this.value)"></label>
+        <button class="btn" style="width:100%; margin-top:20px;" onclick="toggleSettings()">关闭</button>
     </div>
 
-    <div id="table-wrapper">
-        <div id="table-container"></div>
-    </div>
+    <div id="table-wrapper"><div id="table-container"></div></div>
 
 <script>
     var table;
-
     function initTable(data = []) {
         table = new Tabulator("#table-container", {
             data: data,
-            // 核心修改：fitData 模式，根据内容自动撑开列宽，支持横向滚动查看全貌
-            layout: "fitData", 
+            layout: "fitData", // 自动列宽，支持缩放
             height: "100%",
-            movableColumns: true,
             autoColumns: true,
-            autoColumnsDefinitions: function(definitions) {
-                definitions.forEach((col) => {
-                    col.editor = "input";
-                    col.headerFilter = "input";
-                    col.vertAlign = "middle";
-                    col.minWidth = 100; // 设置最小宽度，防止太拥挤
-                });
-                return definitions;
+            autoColumnsDefinitions: (defs) => {
+                defs.forEach(col => { col.editor = "input"; col.headerFilter = "input"; col.minWidth = 100; });
+                return defs;
             },
-            placeholder: "暂无数据，请导入文件",
         });
     }
 
@@ -121,36 +70,32 @@
             try {
                 let res;
                 if (['xlsx', 'xls'].includes(ext)) {
-                    const wb = XLSX.read(ev.target.result, {type: 'binary'});
-                    res = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], {defval: ""});
+                    // 增强解析：使用 arrayBuffer 提高稳定性
+                    const data = new Uint8Array(ev.target.result);
+                    const wb = XLSX.read(data, {type: 'array', cellDates: true});
+                    const firstSheetName = wb.SheetNames[0];
+                    const worksheet = wb.Sheets[firstSheetName];
+                    res = XLSX.utils.sheet_to_json(worksheet, {defval: ""});
                 } else {
                     Papa.parse(ev.target.result, {header: true, skipEmptyLines: true, complete: (r) => initTable(r.data)});
                     return;
                 }
+                if (!res || res.length === 0) throw new Error("文件内容为空或格式不正确");
                 initTable(res);
             } catch (err) {
-                alert("文件解析失败");
+                console.error(err);
+                alert("解析失败: " + err.message + "\n请尝试将文件另存为标准 .xlsx 格式再上传。");
             }
         };
 
-        if (['xlsx', 'xls'].includes(ext)) reader.readAsBinaryString(file);
+        if (['xlsx', 'xls'].includes(ext)) reader.readAsArrayBuffer(file);
         else reader.readAsText(file);
     };
 
     function toggleSettings() { document.getElementById('settingsPanel').classList.toggle('active'); }
     function toggleDarkMode(isDark) { document.body.setAttribute('data-theme', isDark ? 'dark' : 'light'); }
-    function updateThemeColor(color) {
-        document.documentElement.style.setProperty('--primary-color', color);
-        document.querySelector(".tabulator-header").style.borderBottom = "2px solid " + color;
-    }
-    function updateFontSize(size) {
-        document.getElementById('table-container').style.fontSize = size + "px";
-        table.redraw();
-    }
-    function addColumn() {
-        const name = prompt("输入列名:");
-        if(name) table.addColumn({title: name, field: name, editor: "input"});
-    }
+    function updateFontSize(size) { document.getElementById('table-container').style.fontSize = size + "px"; table.redraw(); }
+    function addColumn() { const name = prompt("列名:"); if(name) table.addColumn({title: name, field: name, editor: "input"}); }
 
     initTable([]);
 </script>
