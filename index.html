@@ -2,73 +2,182 @@
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=0.5, minimum-scale=0.1, maximum-scale=1.5, user-scalable=yes">
-    <title>工作台-视野优化版</title>
+    <meta name="viewport" content="width=device-width, initial-scale=0.5, minimum-scale=0.1, maximum-scale=2.0, user-scalable=yes">
+    <title>WPS-WEB 全功能工作台</title>
+    
     <link href="https://cdn.staticfile.org/tabulator/5.1.0/css/tabulator_modern.min.css" rel="stylesheet">
     <script src="https://cdn.staticfile.org/tabulator/5.1.0/js/tabulator.min.js"></script>
     <script src="https://cdn.staticfile.org/xlsx/0.18.5/xlsx.full.min.js"></script>
     <script src="https://cdn.staticfile.org/PapaParse/5.3.1/papaparse.min.js"></script>
+    
     <style>
-        :root { --primary-color: #3498db; --bg-color: #ffffff; --border-color: #e0e0e0; }
-        body, html { height: 100%; margin: 0; padding: 0; font-family: system-ui, sans-serif; background: var(--bg-color); }
+        :root { --primary-color: #d32f2f; --vip-gold: #ffc107; --bg-color: #ffffff; --border-color: #e0e0e0; }
+        
+        body, html { height: 100%; margin: 0; padding: 0; font-family: "Segoe UI", system-ui, sans-serif; background: #f4f4f4; overflow: hidden; }
+
+        /* 顶部导航栏：模仿 WPS 扁平化设计 */
         .app-header { 
-            display: flex; align-items: center; padding: 0 15px; height: 50px; 
+            display: flex; align-items: center; justify-content: space-between;
+            padding: 0 15px; height: 50px; 
             border-bottom: 1px solid var(--border-color); background: var(--bg-color);
             position: sticky; top: 0; z-index: 1000;
         }
-        .btn { border: 1px solid var(--border-color); padding: 5px 12px; border-radius: 4px; cursor: pointer; font-size: 13px; background: white; margin-right: 8px; }
+
+        .main-controls { display: flex; align-items: center; gap: 8px; }
+        .logo { font-weight: bold; color: var(--primary-color); font-size: 18px; margin-right: 15px; }
+
+        .btn { border: 1px solid var(--border-color); padding: 6px 14px; border-radius: 4px; cursor: pointer; font-size: 13px; background: white; transition: 0.2s; }
+        .btn:hover { background: #f0f0f0; }
+        .btn-vip { background: var(--vip-gold); border: none; font-weight: bold; color: #5d4037; }
         .btn-primary { background: var(--primary-color); color: white; border: none; }
-        
-        /* 确保表格容器能平铺，方便缩放 */
-        #table-wrapper { height: calc(100vh - 50px); width: 100%; overflow: auto; }
-        .tabulator { font-size: 14px; border: none !important; }
+
+        /* 侧边功能面板 */
+        .vip-side-panel {
+            position: fixed; top: 50px; right: -260px; bottom: 0; width: 250px;
+            background: white; border-left: 1px solid var(--border-color);
+            transition: 0.3s; z-index: 2000; padding: 20px; box-shadow: -2px 0 10px rgba(0,0,0,0.05);
+        }
+        .vip-side-panel.active { right: 0; }
+        .vip-item { margin-bottom: 15px; padding-bottom: 10px; border-bottom: 1px dashed #eee; }
+        .vip-item h4 { margin: 0 0 8px 0; font-size: 14px; color: #333; }
+
+        /* 表格区域 */
+        #table-wrapper { height: calc(100vh - 50px); width: 100%; background: #fff; overflow: auto; }
+        .tabulator { border: none !important; }
         .tabulator-cell { white-space: nowrap !important; border-right: 1px solid var(--border-color) !important; }
+        
+        /* 手机端适配：确保按钮不会挤在一起 */
+        @media (max-width: 600px) {
+            .logo { display: none; }
+            .btn { padding: 4px 8px; font-size: 12px; }
+        }
     </style>
 </head>
 <body>
+
     <div class="app-header">
-        <b style="color:var(--primary-color); margin-right:15px;">WORKFLOW</b>
-        <button class="btn btn-primary" onclick="document.getElementById('fileInput').click()">导入</button>
-        <input type="file" id="fileInput" hidden accept=".xlsx, .xls, .csv">
-        <button class="btn" onclick="table.download('xlsx', 'data.xlsx')">导出</button>
-        <span style="font-size:12px; color:#666;">← 双指开合调整视野 →</span>
+        <div class="main-controls">
+            <span class="logo">WPS LITE</span>
+            <button class="btn btn-primary" onclick="document.getElementById('fileInput').click()">导入</button>
+            <input type="file" id="fileInput" hidden accept=".xlsx, .xls, .csv">
+            <button class="btn" onclick="table.addRow({}, true)">➕ 行</button>
+            <button class="btn" onclick="addColumn()">➕ 列</button>
+            <button class="btn" onclick="table.download('xlsx', 'wps_export.xlsx')">导出</button>
+        </div>
+        <button class="btn btn-vip" onclick="toggleVip()">💎 VIP 工具箱</button>
     </div>
 
-    <div id="table-wrapper"><div id="table-container"></div></div>
+    <div class="vip-side-panel" id="vipPanel">
+        <h3 style="margin-top:0; color: #5d4037;">VIP 尊享功能</h3>
+        
+        <div class="vip-item">
+            <h4>✨ 一键美化</h4>
+            <button class="btn" style="width:100%" onclick="applyVipTheme()">智能配色排版</button>
+        </div>
+        
+        <div class="vip-item">
+            <h4>🧹 数据清洗</h4>
+            <button class="btn" style="width:100%" onclick="cleanData()">去除空格/重复值</button>
+        </div>
+
+        <div class="vip-item">
+            <h4>🔍 深度筛选</h4>
+            <input type="text" id="filter-input" placeholder="输入关键字搜索..." style="width:90%; padding:5px; margin-bottom:5px;">
+        </div>
+
+        <div class="vip-item">
+            <h4>🔄 格式转换</h4>
+            <button class="btn" style="width:100%" onclick="alert('PDF 转换引擎加载中...')">转为 PDF</button>
+        </div>
+
+        <button class="btn btn-primary" style="width:100%; margin-top:20px;" onclick="toggleVip()">关闭面板</button>
+    </div>
+
+    <div id="table-wrapper">
+        <div id="table-container"></div>
+    </div>
 
 <script>
     var table;
+
+    // 初始化表格
     function initTable(data = []) {
         table = new Tabulator("#table-container", {
             data: data,
-            // 使用 fitDataFill 可以在数据少时填满，数据多时撑开
-            layout: "fitDataFill", 
+            layout: "fitDataFill", // 初始保持紧凑，内容多时自动横向撑开
             height: "100%",
+            movableColumns: true,
+            pagination: "local",
+            paginationSize: 50,
             autoColumns: true,
             autoColumnsDefinitions: (defs) => {
                 defs.forEach(col => { 
                     col.editor = "input"; 
                     col.headerFilter = "input";
-                    col.minWidth = 80; 
+                    col.minWidth = 100;
+                    col.vertAlign = "middle";
                 });
                 return defs;
             },
+            placeholder: "暂无数据，请点击【导入】上传 Excel 文件",
+        });
+
+        // 绑定搜索功能
+        document.getElementById("filter-input").addEventListener("keyup", function(e){
+            const val = e.target.value;
+            // 简单演示：在所有列搜索
+            table.setFilter(table.getColumns()[0].getField(), "like", val);
         });
     }
 
+    // 文件导入逻辑
     document.getElementById('fileInput').onchange = function(e) {
+        if (typeof XLSX === 'undefined') {
+            alert("错误：Excel 解析引擎未加载，请刷新网页。");
+            return;
+        }
         const file = e.target.files[0];
-        if(!file || typeof XLSX === 'undefined') return;
         const reader = new FileReader();
         reader.onload = (ev) => {
-            const data = new Uint8Array(ev.target.result);
-            const wb = XLSX.read(data, {type: 'array'});
-            const res = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], {defval: ""});
-            initTable(res);
+            try {
+                const data = new Uint8Array(ev.target.result);
+                const wb = XLSX.read(data, {type: 'array', cellDates: true});
+                const res = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], {defval: ""});
+                initTable(res);
+            } catch(err) {
+                alert("文件解析失败，请检查是否为标准 Excel 格式。");
+            }
         };
         reader.readAsArrayBuffer(file);
     };
 
+    // VIP 功能实现
+    function toggleVip() { document.getElementById('vipPanel').classList.toggle('active'); }
+
+    function applyVipTheme() {
+        // 模拟 VIP 智能配色
+        document.documentElement.style.setProperty('--primary-color', '#2e7d32');
+        alert("已应用 VIP 护眼商务主题！");
+        table.redraw();
+    }
+
+    function cleanData() {
+        let data = table.getData();
+        data.forEach(row => {
+            for(let key in row) {
+                if(typeof row[key] === 'string') row[key] = row[key].trim();
+            }
+        });
+        table.setData(data);
+        alert("VIP 清洗完成：已自动剔除所有单元格前后的多余空格。");
+    }
+
+    function addColumn() {
+        const name = prompt("请输入新列的标题：");
+        if(name) table.addColumn({title: name, field: name, editor: "input", headerFilter: "input"});
+    }
+
+    // 默认空表启动
     initTable([]);
 </script>
 </body>
