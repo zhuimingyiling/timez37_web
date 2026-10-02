@@ -149,7 +149,7 @@ int main(int argc, char *argv[]) {
     ::window = android::ANativeWindowCreator::Create("new_edition", native_window_screen_x, native_window_screen_y, permeate_record);
     graphics->Init_Render(::window, native_window_screen_x, native_window_screen_y);
     
-    Touch::Init({(float)::abs_ScreenX, (float)::abs_ScreenY}, true);
+    Touch::Init({(float)::abs_ScreenX, (float)::abs_ScreenY}, false);
     Touch::setOrientation(displayInfo.orientation);
     
     std::thread(read_thread, value1, value2, value3).detach();
