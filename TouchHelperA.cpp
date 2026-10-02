@@ -582,85 +582,59 @@ static uint64_t g_down_serial[maxE][maxF] = {};
     void setOtherTouch(bool p_otherTouch) {
         otherTouch = p_otherTouch;
     }
-// ============================================================
-// AutoAim：获取当前真实手指
-// ============================================================
-
-int GetActiveFingers(FingerInfo *out, int maxCount) {
-
-    if (!out || maxCount <= 0) {
+    
+    int GetActiveFingers(FingerInfo *out, int maxCount) {
+    if (!out || maxCount <= 0 || !initialized)
         return 0;
-    }
-
-    if (!initialized) {
-        return 0;
-    }
 
     lock.lock();
 
     int count = 0;
 
-    for (int di = 0;
-         di < (int)devices.size() && count < maxCount;
-         ++di) {
-
+    for (int di = 0; di < (int)devices.size(); ++di) {
         Device &device = devices[di];
 
-        for (int slot = 0;
-             slot < maxF && count < maxCount;
-             ++slot) {
+        for (int si = 0; si < 10; ++si) {
+            touchObj &finger = device.Finger[si];
 
-            touchObj &finger = device.Finger[slot];
-
-            if (!finger.isDown) {
+            if (!finger.isDown)
                 continue;
+
+            if (count >= maxCount) {
+                lock.unlock();
+                return count;
             }
 
-            FingerInfo &dst = out[count++];
+            out[count].device = di;
+            out[count].slot = si;
+            out[count].id = finger.id;
+            out[count].x = Touch2Screen(finger.pos).x;
+            out[count].y = Touch2Screen(finger.pos).y;
+            out[count].isDown = true;
 
-            dst.device = di;
-            dst.slot = slot;
-            dst.id = finger.id;
-
-            dst.x = finger.pos.x;
-            dst.y = finger.pos.y;
-
-            dst.isDown = finger.isDown;
-
-            dst.downSerial =
-                g_down_serial[di][slot];
+            ++count;
         }
     }
 
     lock.unlock();
-
     return count;
 }
 
 
-// ============================================================
-// AutoAim：判断真实手指是否还存在
-// ============================================================
-
 bool IsFingerDown(int device, int slot) {
-
-    if (!initialized) {
+    if (!initialized)
         return false;
-    }
-
-    if (device < 0 ||
-        device >= (int)devices.size()) {
-        return false;
-    }
-
-    if (slot < 0 || slot >= maxF) {
-        return false;
-    }
 
     lock.lock();
 
-    bool result =
-        devices[device].Finger[slot].isDown;
+    bool result = false;
+
+    if (device >= 0 &&
+        device < (int)devices.size() &&
+        slot >= 0 &&
+        slot < 10) {
+        result = devices[device].Finger[slot].isDown;
+    }
 
     lock.unlock();
 
@@ -668,189 +642,111 @@ bool IsFingerDown(int device, int slot) {
 }
 
 
-// ============================================================
-// AutoAim：移动一个已经存在的真实手指
-//
-// 参数使用“屏幕坐标”。
-// 内部负责：
-//
-// 屏幕坐标
-//   ↓
-// orientation
-//   ↓
-// touch_scale
-//   ↓
-// Finger.pos
-//   ↓
-// Upload()
-//   ↓
-// uinput
-//
-// AutoAim 不再自己做 screen_to_touch()。
-// ============================================================
-
 bool MoveExistingScreen(
-    int deviceIndex,
-    int slot,
-    float screenX,
-    float screenY
-) {
+        int device,
+        int slot,
+        float x,
+        float y) {
 
-    if (!initialized || readOnly) {
+    if (!initialized || readOnly)
         return false;
-    }
-
-    if (deviceIndex < 0 ||
-        deviceIndex >= (int)devices.size()) {
-        return false;
-    }
-
-    if (slot < 0 || slot >= maxF) {
-        return false;
-    }
 
     lock.lock();
 
-    Device &device = devices[deviceIndex];
+    if (device < 0 ||
+        device >= (int)devices.size() ||
+        slot < 0 ||
+        slot >= 10) {
+        lock.unlock();
+        return false;
+    }
 
-    touchObj &touch =
-        device.Finger[slot];
+    touchObj &finger = devices[device].Finger[slot];
 
-    if (!touch.isDown) {
+    if (!finger.isDown) {
         lock.unlock();
         return false;
     }
 
     // --------------------------------------------------------
-    // Touch2Screen() 的逆变换
+    // screen 坐标 -> 原始触摸坐标
+    // 这里严格按照 Touch2Screen() 的逆变换。
     // --------------------------------------------------------
 
-    float xt = 0.0f;
-    float yt = 0.0f;
+    float xt = x;
+    float yt = y;
 
-    switch (orientation) {
+    if (!otherTouch) {
+        switch (orientation) {
+            case 1:
+                xt = screenSize.y - y;
+                yt = x;
+                break;
 
-        // ----------------------------------------------------
-        // otherTouch == false
-        // ----------------------------------------------------
+            case 2:
+                xt = screenSize.y - x;
+                yt = screenSize.x - y;
+                break;
 
-        default:
-        case 0:
+            case 3:
+                xt = y;
+                yt = screenSize.x - x;
+                break;
 
-            if (otherTouch) {
+            default:
+                xt = x;
+                yt = y;
+                break;
+        }
+    } else {
+        switch (orientation) {
+            case 1:
+                xt = x;
+                yt = y;
+                break;
 
-                // Touch2Screen:
-                // y = xt
-                // x = screenSize.y - yt
+            case 2:
+                xt = screenSize.y - x;
+                yt = screenSize.x - y;
+                break;
 
-                xt = screenY;
-                yt = screenSize.y - screenX;
+            case 3:
+                xt = screenSize.y - x;
+                yt = screenSize.x - y;
+                break;
 
-            } else {
-
-                // x = xt
-                // y = yt
-
-                xt = screenX;
-                yt = screenY;
-            }
-
-            break;
-
-
-        case 1:
-
-            if (otherTouch) {
-
-                // x = xt
-                // y = yt
-
-                xt = screenX;
-                yt = screenY;
-
-            } else {
-
-                // x = yt
-                // y = screenSize.y - xt
-
-                xt = screenSize.y - screenY;
-                yt = screenX;
-            }
-
-            break;
-
-
-        case 2:
-
-            // 两种模式下都是：
-            //
-            // x = screenSize.y - xt
-            // y = screenSize.x - yt
-
-            xt = screenSize.y - screenX;
-            yt = screenSize.x - screenY;
-
-            break;
-
-
-        case 3:
-
-            if (otherTouch) {
-
-                // x = screenSize.y - xt
-                // y = screenSize.x - yt
-
-                xt = screenSize.y - screenX;
-                yt = screenSize.x - screenY;
-
-            } else {
-
-                // y = xt
-                // x = screenSize.x - yt
-
-                xt = screenY;
-                yt = screenSize.x - screenX;
-            }
-
-            break;
+            default:
+                xt = y;
+                yt = screenSize.y - x;
+                break;
+        }
     }
 
-    // --------------------------------------------------------
-    // 屏幕坐标 -> 原始触摸输出坐标
-    // --------------------------------------------------------
+    finger.pos.x = xt * touch_scale.x;
+    finger.pos.y = yt * touch_scale.y;
 
-    float tx =
-        xt * touch_scale.x;
+    // 限制在触摸设备有效范围
+    if (finger.pos.x < devices[device].absX.minimum)
+    finger.pos.x = devices[device].absX.minimum;
 
-    float ty =
-        yt * touch_scale.y;
+if (finger.pos.x > devices[device].absX.maximum)
+    finger.pos.x = devices[device].absX.maximum;
 
-    // 防止浮点误差导致超出触摸范围。
-    if (device.absX.maximum > 0) {
+if (finger.pos.y < devices[device].absY.minimum)
+    finger.pos.y = devices[device].absY.minimum;
 
-        if (tx < 0.0f)
-            tx = 0.0f;
-
-        if (tx > device.absX.maximum)
-            tx = (float)device.absX.maximum;
-    }
-
-    if (device.absY.maximum > 0) {
-
-        if (ty < 0.0f)
-            ty = 0.0f;
-
-        if (ty > device.absY.maximum)
-            ty = (float)device.absY.maximum;
-    }
-
-    touch.pos.x = tx;
-    touch.pos.y = ty;
-
+if (finger.pos.y > devices[device].absY.maximum)
+    finger.pos.y = devices[device].absY.maximum;
+    
     Upload();
 
     lock.unlock();
 
     return true;
 }
+
+// ============================================================
+// AutoAim：获取当前真实手指
+// ============================================================
+
 }
