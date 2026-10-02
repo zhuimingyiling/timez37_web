@@ -14,6 +14,15 @@
 #include "TouchKeyboard.h"
 #include "PyAttack.h"     // ← 新增
 #include "AutoAim.h"
+
+using AutoAim::g_trigger_zone_x1;
+using AutoAim::g_trigger_zone_y1;
+using AutoAim::g_trigger_zone_x2;
+using AutoAim::g_trigger_zone_y2;
+using AutoAim::g_aim_trigger;
+using AutoAim::g_trigger_mapping;
+
+using namespace AutoAim;
 #include "AutoPallet.h"
 #include "theme.h"
 #include "fang_ui.h"
