@@ -131,6 +131,7 @@ static std::atomic<int> g_trigger_zone_y2{0};
 
 // 当前是否处于触发区域
 static std::atomic<bool> g_aim_trigger{false};
+static std::atomic<int> g_trigger_mapping{0};
 
 // 技能按钮手指
 static LockedFinger g_skill_finger;
