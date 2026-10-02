@@ -2754,6 +2754,14 @@ CfgPut("AutoAim.skill_w",         AutoAim::skill_w.load());
 CfgPut("AutoAim.aim_x",           AutoAim::aim_x.load());
 CfgPut("AutoAim.aim_y",           AutoAim::aim_y.load());
 CfgPut("AutoAim.aim_w",           AutoAim::aim_w.load());
+CfgPut("AutoAim.vertical_comp",
+       AutoAim::vertical_comp.load());
+
+CfgPut("AutoAim.vertical_comp_per_meter",
+       AutoAim::vertical_comp_per_meter.load());
+
+CfgPut("AutoAim.max_vertical_comp",
+       AutoAim::max_vertical_comp.load());
 
     FILE* f = fopen(kConfigPath, "w");
     if (!f) return;
@@ -2871,6 +2879,15 @@ else if (CfgGet(i, "AutoAim.skill_w", fv))     { AutoAim::skill_w.store(fv); Aut
 else if (CfgGet(i, "AutoAim.aim_x", fv))       AutoAim::aim_x.store(fv);
 else if (CfgGet(i, "AutoAim.aim_y", fv))       AutoAim::aim_y.store(fv);
 else if (CfgGet(i, "AutoAim.aim_w", fv))       { AutoAim::aim_w.store(fv); AutoAim::aim_h.store(fv); }
+else if (CfgGet(i, "AutoAim.vertical_comp", fv)) {
+    AutoAim::vertical_comp.store(fv);
+}
+else if (CfgGet(i, "AutoAim.vertical_comp_per_meter", fv)) {
+    AutoAim::vertical_comp_per_meter.store(fv);
+}
+else if (CfgGet(i, "AutoAim.max_vertical_comp", fv)) {
+    AutoAim::max_vertical_comp.store(fv);
+}
     }
     // 如果配置里读到了有效的触摸区域坐标，标记为已初始化，
 // 否则 TouchRect_Draw / AutoSkill_Worker 会把它重置回屏幕默认位置
@@ -2878,7 +2895,7 @@ if (g_touch_rect_x > 0.f || g_touch_rect_y > 0.f)         g_touch_rect_inited = 
 if (g_flywheel_rect_x > 0.f || g_flywheel_rect_y > 0.f)   g_flywheel_rect_inited = true;
 
 if (AutoAim::skill_x.load() > 0.f || AutoAim::skill_y.load() > 0.f)
-    AutoAim::skill_inited = true;
+    AutoAim::skill_inited.load() = true;
 if (AutoAim::aim_x.load() > 0.f || AutoAim::aim_y.load() > 0.f)
     AutoAim::aim_inited = true;
     
@@ -3046,167 +3063,1018 @@ for (int i = 0; i < 3; i++) {
 ImGui::Dummy(ImVec2(0, 12));
 
 if (g_touch_sub == 0) {
-    // ==================== 自瞄 ====================
+
+    // ========================================================
+    // ==================== 自瞄 ==============================
+    // ========================================================
+
     SectionLabel("自瞄开关", pal);
-{
-    bool en = AutoAim::enabled.load();
-    if (RowToggle("自瞄", &en, pal)) AutoAim::enabled.store(en);
-}
-ImGui::TextDisabled("状态: %s", AutoAim::status_text());
 
-    ImGui::Dummy(ImVec2(0, 8));
-    SectionLabel("触摸模式", pal);
-    static const char* modes[] = { "双触摸", "单触摸(蜡像师)" };
-    int tm = AutoAim::touch_mode.load();
-    int nt = SegmentedControl("aa_mode", modes, 2, tm, pal);
-    if (nt != tm) AutoAim::touch_mode.store(nt);
-    ImGui::TextDisabled(AutoAim::touch_mode.load() == 0
-        ? "A手指常驻技能键，B手指在自瞄区滑动"
-        : "手指从技能键位置直接滑动");
-        
-    ImGui::Dummy(ImVec2(0, 8));
-SectionLabel("触发区", pal);
-RowToggle("显示触发区", &AutoAim::draw_trigger, pal);
-RowToggle("显示技能键框", &AutoAim::draw_ranges, pal);
+    {
+        bool en = AutoAim::enabled.load();
 
-{
-    int zx = g_trigger_zone_x1.load();
-    int zy = g_trigger_zone_y1.load();
-    int zw = g_trigger_zone_x2.load() - zx;
-    int zh = g_trigger_zone_y2.load() - zy;
+        if (RowToggle(
+                "自瞄",
+                &en,
+                pal
+            )) {
 
-    ImGui::TextDisabled("触发区 (%d,%d) %dx%d", zx, zy, zw, zh);
-}
-float ar = AutoAim::aim_radius.load();
-if (FancySlider("aim_radius", &ar, 100.0f, 800.0f, "%.0f px", pal))
-    AutoAim::aim_radius.store(ar);
-ImGui::TextDisabled("视野手指从屏幕中心偏移多少像素算满方向");
-
-ImGui::Dummy(ImVec2(0, 8));
-SectionLabel("触发区调整", pal);
-RowToggle("显示触发区", &AutoAim::draw_trigger, pal);
-
-{
-    int zx = g_trigger_zone_x1.load();
-    int zy = g_trigger_zone_y1.load();
-    int zw = g_trigger_zone_x2.load() - zx;
-    int zh = g_trigger_zone_y2.load() - zy;
-
-    ImGui::TextDisabled("位置/大小 (屏幕像素)");
-
-    ImGui::SetNextItemWidth(100);
-    if (ImGui::InputInt("X", &zx, 10, 100)) {
-        if (zx < 0) zx = 0;
-        g_trigger_zone_x1.store(zx);
-        g_trigger_zone_x2.store(zx + zw);
-    }
-    ImGui::SameLine();
-    ImGui::SetNextItemWidth(100);
-    if (ImGui::InputInt("Y", &zy, 10, 100)) {
-        if (zy < 0) zy = 0;
-        g_trigger_zone_y1.store(zy);
-        g_trigger_zone_y2.store(zy + zh);
+            AutoAim::enabled.store(en);
+        }
     }
 
-    ImGui::SetNextItemWidth(100);
-    if (ImGui::InputInt("宽", &zw, 10, 100)) {
-        if (zw < 20) zw = 20;
-        g_trigger_zone_x2.store(zx + zw);
-    }
-    ImGui::SameLine();
-    ImGui::SetNextItemWidth(100);
-    if (ImGui::InputInt("高", &zh, 10, 100)) {
-        if (zh < 20) zh = 20;
-        g_trigger_zone_y2.store(zy + zh);
-    }
+    ImGui::TextDisabled(
+        "状态: %s",
+        AutoAim::status_text()
+    );
 
-    ImGui::TextDisabled("当前: (%d,%d) ~ (%d,%d)",
-        zx, zy, g_trigger_zone_x2.load(), g_trigger_zone_y2.load());
-}
 
-// 映射模式切换
-ImGui::Dummy(ImVec2(0, 6));
-SectionLabel("触摸映射模式(横屏)", pal);
-ImGui::TextDisabled("若触发位置跟红框错位，切换模式试");
-static const char* map_names[] = {
-    "0:不交换", "1:交换", "2:交换+X反向", "3:交换+Y反向", "4:交换+都反向"
-};
-int mm = g_trigger_mapping.load();
-ImGui::SetNextItemWidth(200);
-if (ImGui::Combo("##map_mode", &mm, map_names, 5)) {
-    g_trigger_mapping.store(mm);
-}
-ImGui::TextDisabled("当前: %s", map_names[mm]);
+    // ========================================================
+    // 触摸模式
+    // ========================================================
 
     ImGui::Dummy(ImVec2(0, 8));
-    SectionLabel("触摸区调整", pal);
-    RowToggle("显示调整框", &AutoAim::draw_ranges, pal);
-    if (AutoAim::draw_ranges) {
-        float sw2 = AutoAim::skill_w.load();
-        if (FancySlider("sk_sz", &sw2, 60.0f, 500.0f, "%.0f px", pal))
-            AutoAim::skill_w.store(sw2), AutoAim::skill_h.store(sw2);
-        ImGui::TextDisabled("技能键: (%.0f,%.0f)",
-            AutoAim::skill_x.load() + AutoAim::skill_w.load()*0.5f,
-            AutoAim::skill_y.load() + AutoAim::skill_h.load()*0.5f);
-        ImGui::TextColored(ImVec4(1,0.4f,0.4f,1), "红框内按住拖动改技能键位置");
 
-        float aw2 = AutoAim::aim_w.load();
-        if (FancySlider("am_sz", &aw2, 60.0f, 800.0f, "%.0f px", pal))
-            AutoAim::aim_w.store(aw2), AutoAim::aim_h.store(aw2);
-        ImGui::TextDisabled("自瞄区: (%.0f,%.0f)",
-            AutoAim::aim_x.load() + AutoAim::aim_w.load()*0.5f,
-            AutoAim::aim_y.load() + AutoAim::aim_h.load()*0.5f);
-        ImGui::TextColored(ImVec4(0.4f,1,0.4f,1), "绿框内按住拖动改自瞄区位置");
+    SectionLabel(
+        "触摸模式",
+        pal
+    );
+
+    static const char* modes[] = {
+        "双触摸",
+        "单触摸(蜡像师)"
+    };
+
+    int tm =
+        AutoAim::touch_mode.load();
+
+    int nt =
+        SegmentedControl(
+            "aa_mode",
+            modes,
+            2,
+            tm,
+            pal
+        );
+
+    if (nt != tm) {
+
+        AutoAim::touch_mode.store(
+            nt
+        );
     }
 
-    ImGui::Dummy(ImVec2(0, 8));
-    SectionLabel("锁定判定", pal);
-    static const char* lock_items[] = { "优先距离最近", "优先屏幕视角最近" };
-    int lp = AutoAim::lock_policy.load();
-    int nl = SegmentedControl("aa_lock", lock_items, 2, lp, pal);
-    if (nl != lp) AutoAim::lock_policy.store(nl);
+    ImGui::TextDisabled(
+        AutoAim::touch_mode.load() == 0
+            ? "技能前已有移动手指：移动手指负责方向，技能手指只负责技能"
+            : "技能手指自己负责技能方向"
+    );
+
+
+    // ========================================================
+    // 技能触摸识别区域
+    //
+    // ★ 这一块是本次最重要的修改
+    //
+    // AutoAim 不再：
+    //
+    //     State47
+    //       ↓
+    //     随便找一个最新手指
+    //
+    // 而是：
+    //
+    //     State47
+    //       ↓
+    //     手指必须位于这个技能区域
+    //       ↓
+    //     才允许认定为 skillFinger
+    //
+    // 这样边走边按技能时：
+    //
+    //     移动轮盘 = 不在技能框
+    //     技能手指 = 在技能框
+    //
+    // 不会抢移动轮盘。
+    // ========================================================
 
     ImGui::Dummy(ImVec2(0, 8));
-    SectionLabel("预判", pal);
-    float pr = AutoAim::predict_m.load();
-    if (FancySlider("aa_pred", &pr, 0.0f, 10.0f, "%.1f m", pal))
-        AutoAim::predict_m.store(pr);
-    ImGui::TextDisabled("沿敌方朝向推 %.1f 米", pr);
+
+    SectionLabel(
+        "技能触摸识别",
+        pal
+    );
+
+
+    // --------------------------------------------------------
+    // 第一次进入页面时：
+    //
+    // 如果 skill 区域还没有配置，
+    // 直接使用当前“触发区”作为技能区域。
+    //
+    // 这样你原来的触发区设置可以直接继续使用。
+    // --------------------------------------------------------
+
+    if (!AutoAim::skill_inited.load()) {
+
+        const int zx =
+            g_trigger_zone_x1.load();
+
+        const int zy =
+            g_trigger_zone_y1.load();
+
+        const int zx2 =
+            g_trigger_zone_x2.load();
+
+        const int zy2 =
+            g_trigger_zone_y2.load();
+
+        const int zw =
+            zx2 - zx;
+
+        const int zh =
+            zy2 - zy;
+
+
+        if (zw >= 20 &&
+            zh >= 20) {
+
+            AutoAim::skill_x.store(
+                (float)zx
+            );
+
+            AutoAim::skill_y.store(
+                (float)zy
+            );
+
+            AutoAim::skill_w.store(
+                (float)zw
+            );
+
+            AutoAim::skill_h.store(
+                (float)zh
+            );
+
+            AutoAim::skill_inited.load() =
+                true;
+        }
+    }
+
+
+    // --------------------------------------------------------
+    // 技能框大小
+    // --------------------------------------------------------
+
+    float skillSize =
+        AutoAim::skill_w.load();
+
+
+    if (FancySlider(
+            "skill_size",
+            &skillSize,
+            60.0f,
+            500.0f,
+            "%.0f px",
+            pal
+        )) {
+
+        if (skillSize < 20.0f)
+            skillSize = 20.0f;
+
+
+        AutoAim::skill_w.store(
+            skillSize
+        );
+
+        AutoAim::skill_h.store(
+            skillSize
+        );
+
+
+        AutoAim::skill_inited.load() =
+            true;
+    }
+
+
+    // --------------------------------------------------------
+    // 技能框位置
+    // --------------------------------------------------------
+
+    float skillCX =
+        AutoAim::skill_x.load() +
+        AutoAim::skill_w.load() * 0.5f;
+
+
+    float skillCY =
+        AutoAim::skill_y.load() +
+        AutoAim::skill_h.load() * 0.5f;
+
+
+    ImGui::TextDisabled(
+        "技能识别中心: (%.0f, %.0f)",
+        skillCX,
+        skillCY
+    );
+
+
+    ImGui::TextDisabled(
+        "技能识别框: (%.0f, %.0f) ~ (%.0f, %.0f)",
+        AutoAim::skill_x.load(),
+        AutoAim::skill_y.load(),
+        AutoAim::skill_x.load() +
+            AutoAim::skill_w.load(),
+        AutoAim::skill_y.load() +
+            AutoAim::skill_h.load()
+    );
+
+
+    ImGui::TextColored(
+        ImVec4(
+            1.0f,
+            0.4f,
+            0.4f,
+            1.0f
+        ),
+        "红框 = 只有在这里按下的手指才会被认定为技能手指"
+    );
+
+
+    // --------------------------------------------------------
+    // 技能 X
+    // --------------------------------------------------------
+
+    {
+        float sx =
+            AutoAim::skill_x.load();
+
+        if (ImGui::SliderFloat(
+                "技能X",
+                &sx,
+                0.0f,
+                (float)(
+                    AutoAim::g_screen_w > 0
+                        ? AutoAim::g_screen_w
+                        : 2400
+                ),
+                "%.0f"
+            )) {
+
+            if (sx < 0.0f)
+                sx = 0.0f;
+
+
+            AutoAim::skill_x.store(
+                sx
+            );
+
+            AutoAim::skill_inited.load() =
+                true;
+        }
+    }
+
+
+    // --------------------------------------------------------
+    // 技能 Y
+    // --------------------------------------------------------
+
+    {
+        float sy =
+            AutoAim::skill_y.load();
+
+        if (ImGui::SliderFloat(
+                "技能Y",
+                &sy,
+                0.0f,
+                (float)(
+                    AutoAim::g_screen_h > 0
+                        ? AutoAim::g_screen_h
+                        : 1080
+                ),
+                "%.0f"
+            )) {
+
+            if (sy < 0.0f)
+                sy = 0.0f;
+
+
+            AutoAim::skill_y.store(
+                sy
+            );
+
+            AutoAim::skill_inited.load() =
+                true;
+        }
+    }
+
+
+    // ========================================================
+    // 自瞄区
+    //
+    // 注意：
+    //
+    // 自瞄区只是调试/可视化区域。
+    //
+    // 它不能代替技能触摸识别区域。
+    // ========================================================
 
     ImGui::Dummy(ImVec2(0, 8));
-SectionLabel("自瞄范围", pal);
-{
-    bool sc = AutoAim::show_circle.load();
-    if (RowToggle("显示范围圆", &sc, pal)) AutoAim::show_circle.store(sc);
-}
-if (AutoAim::show_circle.load()) {
-    float cr = AutoAim::circle_r.load();            // ← 这行
-    if (FancySlider("aa_cr", &cr, 50.0f, 1200.0f, "%.0f px", pal))
-        AutoAim::circle_r.store(cr);
 
-    float ct = AutoAim::circle_thick.load();
-    if (FancySlider("aa_ct", &ct, 0.5f, 8.0f, "%.1f px", pal))
-        AutoAim::circle_thick.store(ct);
+    SectionLabel(
+        "自瞄触摸区",
+        pal
+    );
 
-    ImU32 cc = AutoAim::circle_color.load();
-    if (ColorPickerRow("颜色", &cc, pal))
-        AutoAim::circle_color.store(cc);
-}
+
+    float aimSize =
+        AutoAim::aim_w.load();
+
+
+    if (FancySlider(
+            "aim_size",
+            &aimSize,
+            60.0f,
+            800.0f,
+            "%.0f px",
+            pal
+        )) {
+
+        if (aimSize < 20.0f)
+            aimSize = 20.0f;
+
+
+        AutoAim::aim_w.store(
+            aimSize
+        );
+
+        AutoAim::aim_h.store(
+            aimSize
+        );
+
+        AutoAim::aim_inited =
+            true;
+    }
+
+
+    ImGui::TextDisabled(
+        "自瞄区中心: (%.0f, %.0f)",
+        AutoAim::aim_x.load() +
+            AutoAim::aim_w.load() * 0.5f,
+        AutoAim::aim_y.load() +
+            AutoAim::aim_h.load() * 0.5f
+    );
+
+
+    ImGui::TextColored(
+        ImVec4(
+            0.4f,
+            1.0f,
+            0.4f,
+            1.0f
+        ),
+        "绿框仅用于调试显示，不会决定技能手指"
+    );
+
+
+    // ========================================================
+    // 显示调试框
+    // ========================================================
 
     ImGui::Dummy(ImVec2(0, 8));
-    SectionLabel("限制距离", pal);
-    float md2 = AutoAim::max_dist.load();
-    if (FancySlider("aa_md", &md2, 0.0f, 100.0f, "%.0f m", pal))
-        AutoAim::max_dist.store(md2);
-    ImGui::TextDisabled("超过该距离不触发；100=不限制");
+
+    SectionLabel(
+        "触摸调试",
+        pal
+    );
+
+    RowToggle(
+        "显示触发区",
+        &AutoAim::draw_trigger,
+        pal
+    );
+
+    RowToggle(
+        "显示技能/自瞄框",
+        &AutoAim::draw_ranges,
+        pal
+    );
+
+
+    // ========================================================
+    // 原来的触发区
+    // ========================================================
 
     ImGui::Dummy(ImVec2(0, 8));
-SectionLabel("瞄准速率", pal);
-float mv = (float)AutoAim::aim_rate.load();
-if (FancySlider("aa_rate", &mv, 100.0f, 5000.0f, "%.0f px/s", pal))
-    AutoAim::aim_rate.store((int)mv);
-ImGui::TextDisabled("每秒最多移动 %.0f 像素", mv);
-} else if (g_touch_sub == 1) {
+
+    SectionLabel(
+        "触发区",
+        pal
+    );
+
+    {
+        int zx =
+            g_trigger_zone_x1.load();
+
+        int zy =
+            g_trigger_zone_y1.load();
+
+        int zw =
+            g_trigger_zone_x2.load() -
+            zx;
+
+        int zh =
+            g_trigger_zone_y2.load() -
+            zy;
+
+
+        if (zw < 20)
+            zw = 20;
+
+        if (zh < 20)
+            zh = 20;
+
+
+        ImGui::TextDisabled(
+            "位置/大小（屏幕像素）"
+        );
+
+
+        // ----------------------------------------------------
+        // X
+        // ----------------------------------------------------
+
+        ImGui::SetNextItemWidth(
+            100
+        );
+
+        if (ImGui::InputInt(
+                "触发X",
+                &zx,
+                10,
+                100
+            )) {
+
+            if (zx < 0)
+                zx = 0;
+
+
+            g_trigger_zone_x1.store(
+                zx
+            );
+
+            g_trigger_zone_x2.store(
+                zx + zw
+            );
+
+
+            // 同步技能识别区域
+            AutoAim::skill_x.store(
+                (float)zx
+            );
+
+            AutoAim::skill_inited.load() =
+                true;
+        }
+
+
+        ImGui::SameLine();
+
+
+        // ----------------------------------------------------
+        // Y
+        // ----------------------------------------------------
+
+        ImGui::SetNextItemWidth(
+            100
+        );
+
+        if (ImGui::InputInt(
+                "触发Y",
+                &zy,
+                10,
+                100
+            )) {
+
+            if (zy < 0)
+                zy = 0;
+
+
+            g_trigger_zone_y1.store(
+                zy
+            );
+
+            g_trigger_zone_y2.store(
+                zy + zh
+            );
+
+
+            // 同步技能识别区域
+            AutoAim::skill_y.store(
+                (float)zy
+            );
+
+            AutoAim::skill_inited.load() =
+                true;
+        }
+
+
+        // ----------------------------------------------------
+        // 宽
+        // ----------------------------------------------------
+
+        ImGui::SetNextItemWidth(
+            100
+        );
+
+        if (ImGui::InputInt(
+                "触发宽",
+                &zw,
+                10,
+                100
+            )) {
+
+            if (zw < 20)
+                zw = 20;
+
+
+            g_trigger_zone_x2.store(
+                zx + zw
+            );
+
+
+            // 同步技能识别区域
+            AutoAim::skill_w.store(
+                (float)zw
+            );
+
+            AutoAim::skill_inited.load() =
+                true;
+        }
+
+
+        ImGui::SameLine();
+
+
+        // ----------------------------------------------------
+        // 高
+        // ----------------------------------------------------
+
+        ImGui::SetNextItemWidth(
+            100
+        );
+
+        if (ImGui::InputInt(
+                "触发高",
+                &zh,
+                10,
+                100
+            )) {
+
+            if (zh < 20)
+                zh = 20;
+
+
+            g_trigger_zone_y2.store(
+                zy + zh
+            );
+
+
+            // 同步技能识别区域
+            AutoAim::skill_h.store(
+                (float)zh
+            );
+
+            AutoAim::skill_inited.load() =
+                true;
+        }
+
+
+        ImGui::TextDisabled(
+            "当前触发区: (%d,%d) ~ (%d,%d)",
+            zx,
+            zy,
+            g_trigger_zone_x2.load(),
+            g_trigger_zone_y2.load()
+        );
+    }
+
+
+    // ========================================================
+    // 触摸映射模式
+    // ========================================================
+
+    ImGui::Dummy(ImVec2(0, 6));
+
+    SectionLabel(
+        "触摸映射模式(横屏)",
+        pal
+    );
+
+    ImGui::TextDisabled(
+        "如果触发位置与红框错位，再切换模式"
+    );
+
+
+    static const char* map_names[] = {
+        "0:不交换",
+        "1:交换",
+        "2:交换+X反向",
+        "3:交换+Y反向",
+        "4:交换+都反向"
+    };
+
+
+    int mm =
+        g_trigger_mapping.load();
+
+
+    if (mm < 0)
+        mm = 0;
+
+    if (mm > 4)
+        mm = 4;
+
+
+    ImGui::SetNextItemWidth(
+        220
+    );
+
+
+    if (ImGui::Combo(
+            "##map_mode",
+            &mm,
+            map_names,
+            5
+        )) {
+
+        g_trigger_mapping.store(
+            mm
+        );
+    }
+
+
+    ImGui::TextDisabled(
+        "当前: %s",
+        map_names[mm]
+    );
+
+
+    // ========================================================
+    // aim_radius
+    // ========================================================
+
+    ImGui::Dummy(ImVec2(0, 8));
+
+    SectionLabel(
+        "技能方向距离",
+        pal
+    );
+
+
+    float ar =
+        AutoAim::aim_radius.load();
+
+
+    if (FancySlider(
+            "aim_radius",
+            &ar,
+            100.0f,
+            800.0f,
+            "%.0f px",
+            pal
+        )) {
+
+        AutoAim::aim_radius.store(
+            ar
+        );
+    }
+
+
+    ImGui::TextDisabled(
+        "方向手指从技能开始位置沿目标方向推出的距离"
+    );
+
+
+    // ========================================================
+    // 锁定判定
+    // ========================================================
+
+    ImGui::Dummy(ImVec2(0, 8));
+
+    SectionLabel(
+        "锁定判定",
+        pal
+    );
+
+
+    static const char* lock_items[] = {
+        "优先距离最近",
+        "优先屏幕视角最近"
+    };
+
+
+    int lp =
+        AutoAim::lock_policy.load();
+
+
+    int nl =
+        SegmentedControl(
+            "aa_lock",
+            lock_items,
+            2,
+            lp,
+            pal
+        );
+
+
+    if (nl != lp) {
+
+        AutoAim::lock_policy.store(
+            nl
+        );
+    }
+
+
+    // ========================================================
+    // 预判
+    // ========================================================
+
+    ImGui::Dummy(ImVec2(0, 8));
+
+    SectionLabel(
+        "预判",
+        pal
+    );
+
+
+    float pr =
+        AutoAim::predict_m.load();
+
+
+    if (FancySlider(
+            "aa_pred",
+            &pr,
+            0.0f,
+            10.0f,
+            "%.1f m",
+            pal
+        )) {
+
+        AutoAim::predict_m.store(
+            pr
+        );
+    }
+
+
+    ImGui::TextDisabled(
+        "沿敌方朝向推 %.1f 米",
+        pr
+    );
+
+
+    // ========================================================
+    // 自瞄范围
+    // ========================================================
+
+    ImGui::Dummy(ImVec2(0, 8));
+
+    SectionLabel(
+        "自瞄范围",
+        pal
+    );
+
+
+    {
+        bool sc =
+            AutoAim::show_circle.load();
+
+
+        if (RowToggle(
+                "显示范围圆",
+                &sc,
+                pal
+            )) {
+
+            AutoAim::show_circle.store(
+                sc
+            );
+        }
+    }
+
+
+    if (AutoAim::show_circle.load()) {
+
+        float cr =
+            AutoAim::circle_r.load();
+
+
+        if (FancySlider(
+                "aa_cr",
+                &cr,
+                50.0f,
+                1200.0f,
+                "%.0f px",
+                pal
+            )) {
+
+            AutoAim::circle_r.store(
+                cr
+            );
+        }
+
+
+        float ct =
+            AutoAim::circle_thick.load();
+
+
+        if (FancySlider(
+                "aa_ct",
+                &ct,
+                0.5f,
+                8.0f,
+                "%.1f px",
+                pal
+            )) {
+
+            AutoAim::circle_thick.store(
+                ct
+            );
+        }
+
+
+        ImU32 cc =
+            AutoAim::circle_color.load();
+
+
+        if (ColorPickerRow(
+                "颜色",
+                &cc,
+                pal
+            )) {
+
+            AutoAim::circle_color.store(
+                cc
+            );
+        }
+    }
+
+
+    // ========================================================
+    // 距离限制
+    // ========================================================
+
+    ImGui::Dummy(ImVec2(0, 8));
+
+    SectionLabel(
+        "限制距离",
+        pal
+    );
+
+
+    float md2 =
+        AutoAim::max_dist.load();
+
+
+    if (FancySlider(
+            "aa_md",
+            &md2,
+            0.0f,
+            100.0f,
+            "%.0f m",
+            pal
+        )) {
+
+        AutoAim::max_dist.store(
+            md2
+        );
+    }
+
+
+    ImGui::TextDisabled(
+        "超过该距离不触发；100 = 不限制"
+    );
+
+
+    // ========================================================
+    // 瞄准速率
+    // ========================================================
+
+    ImGui::Dummy(ImVec2(0, 8));
+
+    SectionLabel(
+        "瞄准速率",
+        pal
+    );
+
+
+    float mv =
+        (float)AutoAim::aim_rate.load();
+
+
+    if (FancySlider(
+            "aa_rate",
+            &mv,
+            100.0f,
+            5000.0f,
+            "%.0f px/s",
+            pal
+        )) {
+
+        AutoAim::aim_rate.store(
+            (int)mv
+        );
+    }
+
+
+    ImGui::TextDisabled(
+        "每秒最多移动 %.0f 像素",
+        mv
+    );
+
+
+    // ========================================================
+    // 远距离瞄准修正
+    // ========================================================
+
+    ImGui::Dummy(ImVec2(0, 8));
+
+    SectionLabel(
+        "远距离瞄准修正",
+        pal
+    );
+
+
+    float vc =
+        AutoAim::vertical_comp.load();
+
+
+    if (FancySlider(
+            "aa_vc",
+            &vc,
+            -100.0f,
+            100.0f,
+            "%.0f px",
+            pal
+        )) {
+
+        AutoAim::vertical_comp.store(
+            vc
+        );
+    }
+
+
+    ImGui::TextDisabled(
+        "基础垂直修正；正数=向屏幕下方修正"
+    );
+
+
+    float vpm =
+        AutoAim::vertical_comp_per_meter.load();
+
+
+    if (FancySlider(
+            "aa_vpm",
+            &vpm,
+            -5.0f,
+            5.0f,
+            "%.2f px/m",
+            pal
+        )) {
+
+        AutoAim::vertical_comp_per_meter.store(
+            vpm
+        );
+    }
+
+
+    ImGui::TextDisabled(
+        "距离每增加 1 米，额外修正 %.2f px",
+        vpm
+    );
+
+
+    float mvc =
+        AutoAim::max_vertical_comp.load();
+
+
+    if (FancySlider(
+            "aa_vmax",
+            &mvc,
+            0.0f,
+            300.0f,
+            "%.0f px",
+            pal
+        )) {
+
+        AutoAim::max_vertical_comp.store(
+            mvc
+        );
+    }
+
+
+    ImGui::TextDisabled(
+        "最大垂直修正 %.0f px",
+        mvc
+    );
     
         // ==================== 自动技能 ====================
         SectionLabel("自动技能", pal);
