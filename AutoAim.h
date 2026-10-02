@@ -269,10 +269,10 @@ static const TargetInfo *pick_target(
             continue;
 
         float ddx =
-            t.sx - px;
+            t.psx - px;
 
         float ddy =
-            t.sy - py;
+            t.psy - py;
 
         float d2 =
             ddx * ddx +
@@ -650,13 +650,8 @@ static void update_aim() {
 
         if (dlen > 1.0f) {
 
-            fx =
-                g_home_x +
-                dx / dlen * radius;
-
-            fy =
-                g_home_y +
-                dy / dlen * radius;
+            fx = tgt->psx;
+fy = tgt->psy;
         }
     }
 
