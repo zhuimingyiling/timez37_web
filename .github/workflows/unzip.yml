@@ -1,0 +1,67 @@
+name: Extract 1.zip
+
+on:
+workflow_dispatch:
+
+permissions:
+contents: write
+
+jobs:
+unzip:
+runs-on: ubuntu-latest
+
+steps:
+  - name: Checkout repository
+    uses: actions/checkout@v4
+
+  - name: Extract ZIP
+    run: |
+      python3 - <<'PY'
+      import zipfile
+      from pathlib import Path, PurePosixPath
+
+      archive = Path("1.zip")
+      output = Path(".")
+
+      if not archive.is_file():
+          raise SystemExit("ERROR: 1.zip not found")
+
+      with zipfile.ZipFile(archive) as z:
+          for item in z.infolist():
+              name = item.filename
+
+              if not name or "\\" in name:
+                  raise SystemExit(f"Unsafe ZIP path: {name!r}")
+
+              path = PurePosixPath(name)
+
+              if path.is_absolute() or ".." in path.parts:
+                  raise SystemExit(f"Unsafe ZIP path: {name!r}")
+
+              if not path.parts:
+                  continue
+
+              target = output.joinpath(*path.parts)
+
+              if item.is_dir():
+                  target.mkdir(parents=True, exist_ok=True)
+                  continue
+
+              target.parent.mkdir(parents=True, exist_ok=True)
+              with z.open(item) as src, target.open("wb") as dst:
+                  dst.write(src.read())
+
+      print("Extraction completed.")
+      PY
+
+  - name: Commit extracted files
+    run: |
+      git config user.name "github-actions[bot]"
+      git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+      git add -A
+      if ! git diff --cached --quiet; then
+        git commit -m "Extract files from 1.zip"
+        git push
+      else
+        echo "No changes to commit."
+      fi
